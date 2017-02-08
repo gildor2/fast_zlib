@@ -1,0 +1,5 @@
+bak/
+obj/
+Test/Zlib/
+*.exe
+*.pdb
