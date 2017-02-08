@@ -1,0 +1,13 @@
+#
+# This file contains rules that control how Git handles binary and text files, including line endings
+#
+ 
+*.sh eol=lf
+*.pl eol=lf
+
+# Setup Linguist attributes for correct language statistics on Github
+# See https://github.com/github/linguist/blob/master/README.md
+
+# We're using our own tools, however these will force Github to display wrong programming language statistics,
+# so ignore these.
+Tools/* linguist-vendored
