@@ -7,6 +7,9 @@ CONSOLE    = 1
 OPTIMIZE   = speed
 PDB        = 2				# keep enabled, executable is almost the same, except embedded link to pdb file
 
+# place where executable files will be generated
+EXEDIR = obj/bin
+
 !if "$COMPILER" eq "VisualC"
 	CPP_EXCEPT = 0										# used with WIN32_USE_SEH in Core.h
 	OPTIONS = -GS- -GR- 								#?? VC8+
@@ -33,15 +36,17 @@ PDB        = 2				# keep enabled, executable is almost the same, except embedded
 	}
 !endif
 
-OBJDIR = obj/$PRJ-$PLATFORM
-!message $OBJDIR
 
-COMMON_FILES = {
-	Test/test.cpp
+TEST_FILES    = Test/test.cpp
+DEFLATE_FILES = Test/Zlib/deflate.c
+
+# files shared between all builds for the same platform
+OBJDIR = obj/$PRJ-$PLATFORM
+
+sources(COMMON_FILES) = {
 	Test/Zlib/adler32.c
 	Test/Zlib/compress.c
 	Test/Zlib/crc32.c
-	Test/Zlib/deflate.c
 	Test/Zlib/gzio.c
 	Test/Zlib/infback.c
 	Test/Zlib/inffast.c
@@ -51,14 +56,34 @@ COMMON_FILES = {
 	Test/Zlib/zutil.c
 }
 
-OBJDIR = obj/$PRJ-$PLATFORM
-sources(TEST32) = $COMMON_FILES
-target(executable, ${PRJ}-$PLATFORM, TEST32, TEST32)
+# files with different settings
+OBJDIR = obj/$PRJ-$PLATFORM-$TYPE
 
-#!if "$PLATFORM" eq "win32"
+!if "$TYPE" eq "Orig"
 
-#OBJDIR = obj/$PRJ-${PLATFORM}x64
-#sources(TEST64) = $COMMON_FILES
-#target(executable, ${PRJ}64, TEST64, TEST64)
+	sources(TEST32) = {
+		$TEST_FILES
+		$DEFLATE_FILES
+	}
 
-#!endif
+!elif "$TYPE" eq "C"
+
+	sources(TEST32) = {
+		$TEST_FILES
+		Test/deflate_stub.c
+	}
+
+!elif "$TYPE" eq "Asm"
+
+	DEFINES += ASMV
+	sources(TEST32) = {
+		$TEST_FILES
+		$DEFLATE_FILES
+		Sources/match32.asm
+	}
+
+!else
+	!error Unknown type: $TYPE
+!endif
+
+target(executable, $EXEDIR/$PRJ-$TYPE-$PLATFORM, TEST32 + COMMON_FILES)
