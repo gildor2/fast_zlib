@@ -4,6 +4,12 @@
 
 #define ASMV
 #include "Zlib/deflate.c"
+
+/* Prevent error when "longest_match" declared as "extern" but appears "static" */
+#undef local
+#define local
+
+/* Include our match algorithm */
 #include "../Sources/match.h"
 
 void match_init()
