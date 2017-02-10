@@ -1,6 +1,12 @@
-// Fast version of longest_match().
+/*
+ * Fast version of the longest_match function for zlib.
+ * Copyright (C) 2004-2017 Konstantin Nosov
+ * For details and updates please visit
+ * http://github.com/gildor2/fast_zlib
+ */
 
 //#define PARANOID_CHECK                        /* enable to immediately validate results */
+//#define REFINE_MATCHES                        /* improves compression for data which is compressed well */
 
 #ifdef PARANOID_CHECK
 #include <stdio.h>
@@ -25,8 +31,8 @@ local uInt longest_match(s, cur_match)
     /* Stop when cur_match becomes <= limit. To simplify the code,
      * we prevent matches with the string of window index 0.
      */
-    Bytef *match_base = s->window;
-    register Bytef *match_base2;
+    Bytef *match_base = s->window;              /* s->window - offset */
+    Bytef *match_base2;                         /* s->window + best_len-1 - offset */
     IPos threshold_pos = best_len > MIN_MATCH ? s->prev_match : 0;
     /* "offset search" mode will speedup only with large chain_length; plus it is
      * impossible for deflate_fast(), because this function does not perform
@@ -73,22 +79,24 @@ local uInt longest_match(s, cur_match)
     Assert((ulg)s->strstart <= s->window_size-MIN_LOOKAHEAD, "need lookahead");
 
     if (best_len > MIN_MATCH) {
-        /* for deflate_fast() best_len is always MIN_MATCH-1 here */
+        /* We're continuing search (lazy evaluation).
+         * Note: for deflate_fast best_len is always MIN_MATCH-1 here
+         */
         register int i;
         IPos pos;
         register uInt hash = 0;
 #if (MIN_MATCH != 3) || (MAX_MATCH != 258)
 #error The code is designed for MIN_MATCH==3 && MAX_MATCH==258
 #endif
-        /* Find a most distant chain starting from scan with index=1
-         * (index=0 corresponds to cur_match).
-         * Note: we cannot use s->prev[strstart+1,...], because these strings
-         * are not yet inserted into hash table.
+        /* Find a most distant chain starting from scan with index=1 (index=0 corresponds
+         * to cur_match). Note: we cannot use s->prev[strstart+1,...] immediately, because
+         * these strings are not yet inserted into hash table yet.
          */
         UPDATE_HASH(s, hash, scan[1]);
         UPDATE_HASH(s, hash, scan[2]);
         for (i = 3; i <= best_len; i++) {
             UPDATE_HASH(s, hash, scan[i]);
+            /* If we're starting with best_len >= 3, we can use offset search. */
             pos = s->head[hash];
             if (pos <= cur_match) {
                 offset = i - 2;
@@ -109,23 +117,11 @@ local uInt longest_match(s, cur_match)
     Assert(cur_match - offset < s->strstart, "no future");
 
     do {
-        /* Find candidate for matching using hash table */
-
-        /* version for 32+-bit platforms */
-        if (best_len >= sizeof(ulg)) {
-            /* current len >= 4 bytes; compare 1st 4 bytes and last 2 bytes */
-            for (;;) {
-                if (*(ushf*)(match_base2 + cur_match) == scan_end &&
-                    *(ulgf*)(match_base + cur_match) == scan_start_l) break;
-                NEXT_CHAIN;
-            }
-        } else if (best_len == sizeof(ulg)-1) {
-            /* current len is 3 bytes; compare 4 bytes */
-            for (;;) {
-                if (*(ulgf*)(match_base + cur_match) == scan_start_l) break;
-                NEXT_CHAIN;
-            }
-        } else {
+        /* Find a candidate for matching using hash table. Jump over hash
+         * table chain until we'll have a partial march. Doing "break" when
+         * matched, and NEXT_CHAIN to try different place.
+         */
+        if (best_len < MIN_MATCH) {
             /* Here we have best_len < MIN_MATCH, and this means, that
              * offset == 0. So, we need to check only first 2 bytes of
              * match (remaining 1 byte will be the same, because of nature of
@@ -135,10 +131,27 @@ local uInt longest_match(s, cur_match)
                 if (*(ushf*)(match_base + cur_match) == scan_start) break;
                 NEXT_CHAIN;
             }
+        } else if (best_len > MIN_MATCH) {
+            /* current len > MIN_MATCH (>= 4 bytes); compare 1st 4 bytes and last 2 bytes */
+            for (;;) {
+                if (*(ushf*)(match_base2 + cur_match) == scan_end &&
+                    *(ulgf*)(match_base + cur_match) == scan_start_l) break;
+                NEXT_CHAIN;
+            }
+        } else {
+            /* current len is exactly MIN_MATCH (3 bytes); compare 4 bytes */
+            for (;;) {
+                if (*(ulgf*)(match_base + cur_match) == scan_start_l) break;
+                NEXT_CHAIN;
+            }
         }
+
+        /* Skip 1 byte */
         match = match_base + cur_match + 1;
         scan++;
 
+        /* Found a match candidate. Compare strings to determine its length. */
+#if 1
         do {
         } while (*(ushf*)(scan+=2) == *(ushf*)(match+=2) &&
                  *(ushf*)(scan+=2) == *(ushf*)(match+=2) &&
@@ -146,6 +159,26 @@ local uInt longest_match(s, cur_match)
                  *(ushf*)(scan+=2) == *(ushf*)(match+=2) &&
                  scan < strend);
         /* The funny "do {}" generates better code on most compilers */
+#else
+        //!! TODO: 64-bit version
+        //!! TODO: separate loops for small best_len and large best_len
+        while (scan < strend) {
+            if (*(ulgf*)scan != *(ulgf*)match) break;
+            scan += 4; match += 4;
+            if (*(ulgf*)scan != *(ulgf*)match) break;
+            scan += 4; match += 4;
+//            if (*(ulgf*)scan != *(ulgf*)match) break;
+//            scan += 4; match += 4;
+//            if (*(ulgf*)scan != *(ulgf*)match) break;
+//            scan += 4; match += 4;
+        }
+
+        if (*(ushf*)scan == *(ushf*)match)
+        {
+            scan += 2;
+            match += 2;
+        }
+#endif
 
         /* Here, scan <= window+strstart+257 */
         Assert(scan <= s->window+(unsigned)(s->window_size-1), "wild scan");
@@ -154,6 +187,7 @@ local uInt longest_match(s, cur_match)
         len = (MAX_MATCH - 1) - (int)(strend-scan);
         scan = strend - (MAX_MATCH-1);
 
+#ifdef REFINE_MATCHES
         /* Reject matches, smaller than prev_length+2 for matches, older
          * than threshold_pos (slightly improves compression ratio).
          */
@@ -166,6 +200,7 @@ local uInt longest_match(s, cur_match)
                 UPDATE_SCAN_END;
             }
         }
+#endif /* REFINE_MATCHES */
 
         if (len > best_len) {
 #ifdef PARANOID_CHECK
@@ -206,8 +241,8 @@ local uInt longest_match(s, cur_match)
                 UPDATE_MATCH_BASE2;
                 continue;
             } else {
-                /* no way to change offset - simply update match_base2
-                 * for new best_len
+                /* no way to change offset - simply update match_base2 for
+                 * new best_len (this is similar to what original algorithm does)
                  */
                 UPDATE_MATCH_BASE2;
             }
@@ -219,11 +254,16 @@ local uInt longest_match(s, cur_match)
 break_matching: /* sorry for goto's, but such code is smaller and easier to view ... */
 #ifdef PARANOID_CHECK
     if (match_found) {
+        static int warned = 0;
         int error = 0;
+        if (!warned) {
+            warned = 1;
+            printf("WARNING: compiled with PARANOID_CHECK\n");
+        }
         if (real_len > s->lookahead) real_len = s->lookahead;
         if (real_len > MAX_MATCH) {
             error = 1;
-            printf ("match too long");
+            printf("match too long\n");
         }
         if (s->match_start <= limit_base) {
             error = 1;
@@ -241,6 +281,7 @@ break_matching: /* sorry for goto's, but such code is smaller and easier to view
             } else
                 printf("cannot dump");
             Assert(0, "aborted");
+            exit(1);
         }
 /*      Assert(real_len <= MAX_MATCH, "match too long");
         Assert(s->match_start > limit_base, "match too far");
