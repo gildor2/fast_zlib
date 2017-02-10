@@ -1,8 +1,8 @@
 ;------------------------------------------------------------------------------
 ; Fast version of the longest_match function for zlib
-; Copyright (C) 2004-2011 Konstantin Nosov
+; Copyright (C) 2004-2017 Konstantin Nosov
 ; For details and updates visit
-; http://www.gildor.org/en/projects/zlib
+; http://github.com/gildor2/fast_zlib
 ;------------------------------------------------------------------------------
 
 ; How to compile:
@@ -26,7 +26,7 @@
 
 %define COMPUTE_HASH				; should disable for different hash functions or for testing
 ;%define COMPUTE_HASH2				; useless - same ratio/speed
-%define REFINE_MATCHES
+;%define REFINE_MATCHES				; this option produces slightly different compression results - sometimes better, sometimes worse
 %define MIN_CHAIN_LEN	64			; should be greater than max_chain_length in any deflate_fast() level (1-4)
 
 ;%define BREAKPOINT_AT	0x7F9D			; for debugging
@@ -289,7 +289,7 @@ _longest_match:
 		mov	eax,[scan]
 		add	eax,3
 		and	eax,~3
-		add_var scan_aligned,eax
+		add_var scan_aligned,eax	;?? not used
 		sub	eax,[scan]
 		add_var align_shift,eax
 		; scan_max = scan + MAX_MATCH
@@ -429,19 +429,26 @@ _longest_match:
 %define MAX_MATCH_A(x)  ((MAX_MATCH+(x-1)) & ~(x-1))
 		mov	edx,-MAX_MATCH_A(8)
 		mov	esi,[scan]
-		lea	esi,[esi+eax+MAX_MATCH_A(8)]
+		lea	esi,[esi+eax+MAX_MATCH_A(8)] ; scan + align_shift + align(MAX_MATCH)
 		lea	edi,[ebp+ecx]
-		lea	edi,[edi+eax+MAX_MATCH_A(8)]
+		lea	edi,[edi+eax+MAX_MATCH_A(8)] ; cur_match + match_base + align(MAX_MATCH)
 		mov	ebx,4
+
 		xalign	4
 .compare_loop:
+		; EDX = negative loop valiable
+		; ESI = scan
+		; EBX = 4
+		; ESI -> scan
+		; EDI -> match
 %rep 2
 		mov	eax,[esi+edx]
 		xor	eax,[edi+edx]
 		jnz	.not_max_str
-		add	edx,ebx
+		add	edx,ebx			; edx += 4
 %endrep
-		js	.compare_loop
+		js	.compare_loop		; loop while edx < 0
+		; here strings are fully matched
 .max_str:
 		sub	ebp,[offset]
 ;??		cmp	ebp,[limit_base]	; need to check it here, because far_string+offset may be > limit
@@ -519,6 +526,9 @@ _longest_match:
 
 ;------------------------------------------------
 		xalign	4
+		; matches are smaller than MAX_MATCH
+		; we've compared 32-bit integers, so we should check matches with smaller granularity
+		; eax = last comparison result (XOR of match and scan)
 .not_max_str:
 		mov	edi,[prev]
 
