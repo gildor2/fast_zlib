@@ -1,26 +1,15 @@
 // Fast version of longest_match().
 
+//#define PARANOID_CHECK                        /* enable to immediately validate results */
+
+#ifdef PARANOID_CHECK
+#include <stdio.h>
+#endif
+
 local uInt longest_match(s, cur_match)
     deflate_state *s;
     IPos cur_match;                             /* current match */
 {
-//#undef UNALIGNED_OK
-//#define SYS16BIT
-//#define NO_UNROLL                             /* enable to not unroll loops */
-//#define PARANOID_CHECK                        /* enable to immediately validate results */
-
-#ifdef NO_UNROLL
-#define DO_LOOP(x) \
-    for (;;) {     \
-        x          \
-    }
-#else
-#define DO_LOOP(x) \
-    for (;;) {     \
-        x x        \
-    }
-#endif
-
     unsigned chain_length = s->max_chain_length;/* max hash chain length */
     register Bytef *scan = s->window + s->strstart; /* current string */
     register Bytef *match;                      /* matched string */
@@ -52,33 +41,18 @@ local uInt longest_match(s, cur_match)
     int match_found = 0;
 #endif
 
-#ifdef UNALIGNED_OK
-
     /* Compare few bytes at a time. Note: this is not always beneficial.
      * Try with and without -DUNALIGNED_OK to check.
      */
     register Bytef *strend = s->window + s->strstart + MAX_MATCH-1;
         /* points to last byte for maximal-length scan */
     register ush scan_start = *(ushf*)scan;     /* 1st 2 bytes of scan */
-#ifndef SYS16BIT
     typedef ulg FAR ulgf;                       /*?? should be declared in zutil.h */
     ulg scan_start_l = *(ulgf*)scan;            /* 1st 4 bytes of scan */
-#endif
-#define UPDATE_MATCH_BASE2  match_base2 = match_base+best_len-1
-#define UPDATE_SCAN_END     scan_end = *(ushf*)(scan+best_len-1)
     register ush scan_end;                      /* last byte of scan + next one */
 
-#else /* UNALIGNED_OK */
-
-    /* Compare one byte at a time */
-    register Bytef *strend  = s->window + s->strstart + MAX_MATCH;
-        /* points to last+1 (next) byte of maximal-length scan */
-    register Byte scan_end1;                    /* last byte of scan */
-    register Byte scan_end;                     /* next byte of scan */
-#define UPDATE_MATCH_BASE2	match_base2 = match_base+best_len
-#define UPDATE_SCAN_END     scan_end1 = scan[best_len-1]; scan_end = scan[best_len];
-
-#endif /* UNALIGNED_OK */
+#define UPDATE_MATCH_BASE2  match_base2 = match_base+best_len-1
+#define UPDATE_SCAN_END     scan_end = *(ushf*)(scan+best_len-1)
 
     UPDATE_MATCH_BASE2;
     UPDATE_SCAN_END;
@@ -129,64 +103,41 @@ local uInt longest_match(s, cur_match)
     }
 
 #define NEXT_CHAIN \
-    if ((cur_match = prev[cur_match & wmask]) <= limit) goto break_matching; \
+    cur_match = prev[cur_match & wmask]; \
+    if (cur_match <= limit) goto break_matching; \
     if (--chain_length == 0) goto break_matching; \
     Assert(cur_match - offset < s->strstart, "no future");
 
     do {
         /* Find candidate for matching using hash table */
 
-#ifdef UNALIGNED_OK
-
-#ifndef SYS16BIT
-
         /* version for 32+-bit platforms */
         if (best_len >= sizeof(ulg)) {
             /* current len >= 4 bytes; compare 1st 4 bytes and last 2 bytes */
-            DO_LOOP (
+            for (;;) {
                 if (*(ushf*)(match_base2 + cur_match) == scan_end &&
                     *(ulgf*)(match_base + cur_match) == scan_start_l) break;
                 NEXT_CHAIN;
-            )
+            }
         } else if (best_len == sizeof(ulg)-1) {
             /* current len is 3 bytes; compare 4 bytes */
-            DO_LOOP (
+            for (;;) {
                 if (*(ulgf*)(match_base + cur_match) == scan_start_l) break;
                 NEXT_CHAIN;
-            )
+            }
         } else {
             /* Here we have best_len < MIN_MATCH, and this means, that
              * offset == 0. So, we need to check only first 2 bytes of
-             * match (other 1 byte will be the same, because of nature of
+             * match (remaining 1 byte will be the same, because of nature of
              * hash function)
              */
-            DO_LOOP (
+            for (;;) {
                 if (*(ushf*)(match_base + cur_match) == scan_start) break;
                 NEXT_CHAIN;
-            )
+            }
         }
         match = match_base + cur_match + 1;
         scan++;
-
-#else /* SYS16BIT */
-
-        /* version for 16-bit platforms */
-        DO_LOOP (
-            if (*(ushf*)(match_base2 + cur_match) == scan_end) {
-                match = match_base + cur_match;
-                /* We need to check scan[2] and match[2] here, because do-while
-                 * loop should stop exactly on MAX_MATCH when match length is
-                 * too long
-                 */
-                if (*(ushf*)match == scan_start &&
-                    match[2]      == scan[2]) break;
-            }
-            NEXT_CHAIN;
-        )
-        match++;
-        scan++;
-
-#endif /* SYS16BIT */
 
         do {
         } while (*(ushf*)(scan+=2) == *(ushf*)(match+=2) &&
@@ -202,67 +153,6 @@ local uInt longest_match(s, cur_match)
 
         len = (MAX_MATCH - 1) - (int)(strend-scan);
         scan = strend - (MAX_MATCH-1);
-
-#else /* UNALIGNED_OK */
-
-        if (best_len >= 4) {
-            /* compare 2 last and 3 first bytes */
-            DO_LOOP (
-                match = match_base2 + cur_match;
-                if (match[0] == scan_end && *(match-1) == scan_end1) {
-                    match = match_base + cur_match;
-                    if (match[0] == scan[0] &&
-                        match[1] == scan[1] &&
-                        match[2] == scan[2]) break;
-                }
-                NEXT_CHAIN;
-            )
-        } else if (best_len == 3) {
-            /* Here we search for 4 equal bytes. We require to compare
-             * first, last and one of 2 middle bytes. Rest 1 byte will be
-             * compared automatically because of nature of hash function
-             */
-            DO_LOOP (
-                match = match_base + cur_match;
-                if (match[3] == scan_end  &&
-                    match[2] == scan_end1 &&
-                    match[0] == scan[0]) break;
-                NEXT_CHAIN;
-            )
-	        Assert(scan[1] == match[1], "match[1]?");
-        } else {
-            /* Here we have best_len < MIN_MATCH, and this means, that
-             * offset == 0. So, we need to check only 2 of 3 bytes of
-             * match (other 1 byte will be the same, because of nature of
-             * hash function)
-             */
-            DO_LOOP (
-                match = match_base + cur_match;
-                if (match[1] == scan[1] &&
-                    match[0] == scan[0]) break;
-                NEXT_CHAIN;
-            )
-	        Assert(scan[2] == match[2], "match[2]?");
-        }
-        match += 2;
-        scan += 2;
-
-        /* We check for insufficient lookahead only every 8th comparison;
-         * the 256th check will be made at strstart+258.
-         */
-        do {
-        } while (*++scan == *++match && *++scan == *++match &&
-                 *++scan == *++match && *++scan == *++match &&
-                 *++scan == *++match && *++scan == *++match &&
-                 *++scan == *++match && *++scan == *++match &&
-                 scan < strend);
-
-        Assert(scan <= s->window+(unsigned)(s->window_size-1), "wild scan");
-
-        len = MAX_MATCH - (int)(strend - scan);
-        scan = strend - MAX_MATCH;
-
-#endif /* UNALIGNED_OK */
 
         /* Reject matches, smaller than prev_length+2 for matches, older
          * than threshold_pos (slightly improves compression ratio).
@@ -281,7 +171,7 @@ local uInt longest_match(s, cur_match)
 #ifdef PARANOID_CHECK
             match_found = 1;
 #endif
-            /* new string is longer, than previous - remember it */
+            /* new string is longer than previous - remember it */
             s->match_start = cur_match - offset;
             real_len = best_len = len;
             if (len >= nice_match) break;
