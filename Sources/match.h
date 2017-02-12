@@ -25,7 +25,7 @@ local uInt longest_match(s, cur_match)
     int nice_match = s->nice_match;             /* stop if match long enough */
     int offset = 0;                             /* offset of current hash chain */
     IPos limit_base = s->strstart > (IPos)MAX_DIST(s) ?
-        s->strstart - (IPos)MAX_DIST(s) - 1 : NIL;
+        s->strstart - (IPos)MAX_DIST(s) : NIL;
     /*?? are MAX_DIST matches allowed ?! */
     IPos limit = limit_base;                    /* limit will be limit_base+offset */
     /* Stop when cur_match becomes <= limit. To simplify the code,
@@ -211,7 +211,7 @@ local uInt longest_match(s, cur_match)
             real_len = best_len = len;
             if (len >= nice_match) break;
             UPDATE_SCAN_END;
-            /* check for better string offset */
+            /* look for better string offset */
             if (len > MIN_MATCH && cur_match + len < s->strstart && !offs0_mode) {
                 /* NOTE: if deflate algorithm will perform INSERT_STRING for
                  *   a whole scan (not for scan[0] only), can remove
@@ -228,7 +228,8 @@ local uInt longest_match(s, cur_match)
                 for (i = 0; i <= len - MIN_MATCH; i++) {
                     pos = prev[(cur_match + i) & wmask];
                     if (pos < next_pos) {
-                        if (pos <= limit_base) goto break_matching;
+                        /* this hash chain is more distant, use it */
+                        if (pos <= limit_base + i) goto break_matching;
                         next_pos = pos;
                         offset = i;
                     }
@@ -265,7 +266,7 @@ break_matching: /* sorry for goto's, but such code is smaller and easier to view
             error = 1;
             printf("match too long\n");
         }
-        if (s->match_start <= limit_base) {
+        if (s->match_start < limit_base) {
             error = 1;
             printf("too far $%X -> $%X [%d]  (dist+=%X)\n", s->strstart, s->match_start, real_len, limit_base-s->match_start);
         }
