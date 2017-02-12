@@ -9,8 +9,13 @@
 //#define REFINE_MATCHES                        /* improves compression for data which is compressed well */
 
 #ifdef PARANOID_CHECK
+
 #include <stdio.h>
-#endif
+
+#undef Assert
+#define Assert(x, msg) { if (!(x)) { printf("Assertion: %s: %s %d: %s\n", msg, __FILE__, __LINE__, #x); exit(1); } }
+
+#endif /* PARANOID_CHECK */
 
 local uInt longest_match(s, cur_match)
     deflate_state *s;
@@ -284,9 +289,6 @@ break_matching: /* sorry for goto's, but such code is smaller and easier to view
             Assert(0, "aborted");
             exit(1);
         }
-/*      Assert(real_len <= MAX_MATCH, "match too long");
-        Assert(s->match_start > limit_base, "match too far");
-        Assert(!zmemcmp(s->window + s->strstart, s->window + s->match_start, real_len), "invalid match"); */
     }
 #endif /* PARANOID_CHECK */
     if ((uInt)real_len <= s->lookahead) return (uInt)real_len;

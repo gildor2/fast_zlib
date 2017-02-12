@@ -11,6 +11,10 @@ function DoTests
 	obj/bin/test-Orig-win32 $dir
 }
 
-DoTests C:/Projects/Epic/UnrealEngine4-latest/Engine/Source/Runtime
-DoTests C:/3-UnrealEngine/4.14/Engine/Binaries/Win64
-DoTests C:/1
+if [ $1 ]; then
+	DoTests $1
+else
+	DoTests C:/Projects/Epic/UnrealEngine4-latest/Engine/Source/Runtime
+	DoTests C:/3-UnrealEngine/4.14/Engine/Binaries/Win64
+	DoTests C:/1
+fi
