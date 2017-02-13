@@ -1,14 +1,16 @@
 #!/bin/bash
 
+platform=win32
+
 # build all targets with hiding build output
-./build.sh > /dev/null 2>&1
+./build.sh vc-$platform > /dev/null 2>&1
 
 function DoTests
 {
 	local dir=$1
-	obj/bin/test-Asm-win32 $dir
-	obj/bin/test-C-win32 $dir
-	obj/bin/test-Orig-win32 $dir
+	obj/bin/test-Asm-$platform $dir
+	obj/bin/test-C-$platform $dir
+	obj/bin/test-Orig-$platform $dir
 }
 
 if [ $1 ]; then

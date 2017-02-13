@@ -88,6 +88,23 @@ OBJDIR = obj/$PRJ-$PLATFORM-$TYPE
 		Sources/match32.asm
 	}
 
+!elif "$TYPE" eq "CompC"
+
+	DEFINES += VERSION="CompC"
+	sources(TEST32) = {
+		$TEST_FILES
+		Test/deflate_stub_cmp.c
+	}
+
+!elif "$TYPE" eq "CompAsm"
+
+	DEFINES += VERSION="CompAsm"
+	sources(TEST32) = {
+		$TEST_FILES
+		Test/deflate_stub_cmp_asm.c
+		Sources/match32.asm
+	}
+
 !else
 	!error Unknown type: $TYPE
 !endif
