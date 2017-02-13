@@ -1,4 +1,4 @@
-Fast ZLib compression patch
+Fast zlib compression patch
 ===========================
 
 Summary

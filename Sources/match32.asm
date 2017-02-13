@@ -674,11 +674,11 @@ _longest_match:
 		cmp	ebx,ecx
 		jbe	.break_match		; one of chains either too far, or NIL
 		cmp	ebx,edx
-		jnc	.scan_match_loop	; current chain is less distant, than remembered
+		jnc	.scan_match_loop	; current chain is less distant than remembered
 		mov	edx,ebx
 		sub	ebp,eax			; offset = EBP-old_match
 		mov	[offset],ebp		; NOTE: should mask offset with "wmask" later
-		add	ebp,eax
+		add	ebp,eax			; return EBP, add EAX back
 		jmp	.scan_match_loop
 
 .scan_match_end:
