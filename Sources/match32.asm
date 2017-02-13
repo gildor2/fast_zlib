@@ -336,7 +336,7 @@ _longest_match:
 		movzx	eax,word [edx+ebx*2]
 
 		cmp	eax,ebp
-		ja	.cont_init_match
+		jae	.cont_init_match
 ;		cmp	eax,[limit]
 ;		jbe	.break_match
 		mov	ebp,eax			; cur_match = match

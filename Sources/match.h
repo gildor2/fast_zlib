@@ -52,9 +52,6 @@ local uInt longest_match(s, cur_match)
     int match_found = 0;
 #endif
 
-    /* Compare few bytes at a time. Note: this is not always beneficial.
-     * Try with and without -DUNALIGNED_OK to check.
-     */
     register Bytef *strend = s->window + s->strstart + MAX_MATCH-1;
         /* points to last byte for maximal-length scan */
     register ush scan_start = *(ushf*)scan;     /* 1st 2 bytes of scan */
@@ -103,7 +100,7 @@ local uInt longest_match(s, cur_match)
             UPDATE_HASH(s, hash, scan[i]);
             /* If we're starting with best_len >= 3, we can use offset search. */
             pos = s->head[hash];
-            if (pos <= cur_match) {
+            if (pos < cur_match) {
                 offset = i - 2;
                 cur_match = pos;
             }
