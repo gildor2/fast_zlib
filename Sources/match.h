@@ -214,7 +214,8 @@ local uInt longest_match(s, cur_match)
             if (len >= nice_match) break;
             UPDATE_SCAN_END;
             /* look for better string offset */
-            if (len > MIN_MATCH && cur_match + len < s->strstart && !offs0_mode) {
+			/*!! TODO: check if "cur_match - offset + len < s->strstart" condition is really needed - it restricts RLE-like compression */
+            if (len > MIN_MATCH && cur_match - offset + len < s->strstart && !offs0_mode) {
                 /* NOTE: if deflate algorithm will perform INSERT_STRING for
                  *   a whole scan (not for scan[0] only), can remove
                  *   "cur_match + len < s->strstart" limitation and replace it
