@@ -32,7 +32,10 @@ for arg in "$@"; do		# using quoted $@ will allow to correctly separate argument
 done
 
 # build all targets with hiding build output
-if ! ./build.sh vc-$platform > /dev/null 2>&1; then
+target=vc-$platform
+[ "$platform" == "unix" ] && target=linux	# shame, "unix" vs "linux"
+
+if ! ./build.sh $target > /dev/null 2>&1; then
 	echo "Build failed!"
 	exit 1
 fi
@@ -42,6 +45,14 @@ echo "Testing for $platform"
 function DoTests
 {
 	local dir="$1"
+
+	if [ "$platform" == "unix" ]; then
+		# convert Windows path to Linux (VM)
+		if [ "${dir:1:1}" == ":" ]; then
+			dir="/mnt/hgfs/${dir:0:1}${dir:2}"
+		fi
+	fi
+
 	if [ "$platform" != "win64" ] && [ $noasm == 0 ]; then
 		obj/bin/test-Asm-$platform "$dir"
 	fi
