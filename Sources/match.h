@@ -157,7 +157,6 @@ local uInt longest_match(s, cur_match)
         scan++;
 
         /* Found a match candidate. Compare strings to determine its length. */
-#if 1
         do {
         } while (*(ushf*)(scan+=2) == *(ushf*)(match+=2) &&
                  *(ushf*)(scan+=2) == *(ushf*)(match+=2) &&
@@ -165,26 +164,6 @@ local uInt longest_match(s, cur_match)
                  *(ushf*)(scan+=2) == *(ushf*)(match+=2) &&
                  scan < strend);
         /* The funny "do {}" generates better code on most compilers */
-#else
-        //!! TODO: 64-bit version
-        //!! TODO: separate loops for small best_len and large best_len
-        while (scan < strend) {
-            if (*(ulgf*)scan != *(ulgf*)match) break;
-            scan += 4; match += 4;
-            if (*(ulgf*)scan != *(ulgf*)match) break;
-            scan += 4; match += 4;
-//            if (*(ulgf*)scan != *(ulgf*)match) break;
-//            scan += 4; match += 4;
-//            if (*(ulgf*)scan != *(ulgf*)match) break;
-//            scan += 4; match += 4;
-        }
-
-        if (*(ushf*)scan == *(ushf*)match)
-        {
-            scan += 2;
-            match += 2;
-        }
-#endif
 
         /* Here, scan <= window+strstart+257 */
         Assert(scan <= s->window+(unsigned)(s->window_size-1), "wild scan");

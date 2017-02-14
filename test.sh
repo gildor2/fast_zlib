@@ -32,7 +32,10 @@ for arg in "$@"; do		# using quoted $@ will allow to correctly separate argument
 done
 
 # build all targets with hiding build output
-./build.sh vc-$platform > /dev/null 2>&1
+if ! ./build.sh vc-$platform > /dev/null 2>&1; then
+	echo "Build failed!"
+	exit 1
+fi
 
 echo "Testing for $platform"
 
