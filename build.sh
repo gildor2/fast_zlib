@@ -4,8 +4,10 @@
 PLATFORM=$1
 TYPE=$2
 
-[ "$PLATFORM" ] || PLATFORM="vc-win32"
-[ "$OSTYPE" == "linux-gnu" ] || [ "$OSTYPE" == "linux" ] && PLATFORM="linux"
+if [ -z "$PLATFORM" ]; then
+	PLATFORM="vc-win32"
+	[ "$OSTYPE" == "linux-gnu" ] || [ "$OSTYPE" == "linux" ] && PLATFORM="linux"
+fi
 
 export vc_ver=10
 
