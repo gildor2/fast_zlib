@@ -22,8 +22,8 @@ for arg in "$@"; do		# using quoted $@ will allow to correctly separate argument
 		platform=win64
 		;;
 	*)
-		if [ -d $arg ]; then
-			dir=$arg
+		if [ -d "$arg" ]; then
+			dir="$arg"
 		else
 			echo "Usage: test.sh [path] [--noasm] [--noorig] [--win64]"
 			exit
@@ -41,18 +41,18 @@ echo "Testing for $platform"
 
 function DoTests
 {
-	local dir=$1
+	local dir="$1"
 	if [ "$platform" != "win64" ] && [ $noasm == 0 ]; then
-		obj/bin/test-Asm-$platform $dir
+		obj/bin/test-Asm-$platform "$dir"
 	fi
-	obj/bin/test-C-$platform $dir
+	obj/bin/test-C-$platform "$dir"
 	if [ $noorig == 0 ]; then
-		obj/bin/test-Orig-$platform $dir
+		obj/bin/test-Orig-$platform "$dir"
 	fi
 }
 
-if [ $dir ]; then
-	DoTests $dir
+if [ "$dir" ]; then
+	DoTests "$dir"
 else
 	DoTests C:/Projects/Epic/UnrealEngine4-latest/Engine/Source/Runtime
 	DoTests C:/3-UnrealEngine/4.14/Engine/Binaries/Win64
