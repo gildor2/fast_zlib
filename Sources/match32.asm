@@ -1,23 +1,30 @@
 ;------------------------------------------------------------------------------
 ; Fast version of the longest_match function for zlib
 ; Copyright (C) 2004-2017 Konstantin Nosov
-; For details and updates visit
+; For details and updates please visit
 ; http://github.com/gildor2/fast_zlib
+; Licensed under the BSD license. See LICENSE.txt file in the project root for
+; full license information.
 ;------------------------------------------------------------------------------
 
 ; How to compile:
-;  - use command line: nasm match.asm -O4
-;  - to compile for Delphi/WatcomC/BorlandC add "-DOMF_FORMAT -fobj" command line options.
-;  - for VisualC add "-fwin32"
-;  - if your C compiler requires leading underscore, add "--prefix _" option.
-;  * nasm can be obtained here: http://nasm.sf.net/
+;  - Use the following command line: nasm match.asm
+;  - To compile for Delphi/WatcomC/BorlandC add "-DOMF_FORMAT -fobj" command line options.
+;  - For Windows / VisualC add "-f win32"
+;  - If your C compiler requires leading underscore, add "--prefix _" option. Please note
+;    that this implementation already defines 2 symbols for longest_match: with and without
+;    leading underscore.
+; For zlib of version 1.2.2 and older, you should define OLD_ZLIB macro. 1.2.2.1 and newer
+; doesn't require this definition.
+
+; For more details please refer to README.md at the project's root directory.
 
 ; Some optimization notes:
 ;  - "movzx reg32,word [mem]" is faster than "mov reg16,word [mem]"
 ;  - "movzx eax,ax" is faster than "and eax,0xFFFF"
 ;  - unrolled "rep cmpsd" faster
 
-;?? can use __OUTPUT_FORMAT__ macro to detect OMF (obj) and COFF (win32)
+;?? TODO: can use __OUTPUT_FORMAT__ macro to detect OMF (obj) and COFF (win32)
 
 		bits	32
 		global	longest_match, match_init
@@ -29,7 +36,9 @@
 ;%define REFINE_MATCHES				; this option produces slightly different compression results - sometimes better, sometimes worse
 %define MIN_CHAIN_LEN	64			; should be greater than max_chain_length in any deflate_fast() level (1-4)
 
-;%define BREAKPOINT_AT	0x7F9D			; for debugging
+; Debugging options
+
+;%define BREAKPOINT_AT	0x7F9D
 
 
 ;------------------------------------------------------------------------------
@@ -44,7 +53,8 @@
 	%endrep
 %endmacro
 
-		struc DST			; deflate_state
+; deflate_state (DST) structure layout
+		struc DST
 		struc_vars .strm, .status
 		struc_vars .pending_buf, .pending_buf_size, .pending_out, .pending, .wrap
 %ifdef OLD_ZLIB
@@ -183,12 +193,14 @@ MIN_LOOKAHEAD	equ	(MAX_MATCH+MIN_MATCH+1)
 ;------------------------------------------------------------------------------
 
 %ifdef OMF_FORMAT
+; Section definition for Watcom C
 SECTION _TEXT public align=16 class=CODE use32
 %else
 SECTION .text
 %endif
 
 ;------------------------------------------------------------------------------
+; uInt longest_match(deflate_state *s, IPos cur_match)
 
 global longest_match, _longest_match
 
@@ -740,8 +752,8 @@ _longest_match:
 
 ;------------------------------------------------------------------------------
 
-		; this is a main magic line in a file, please DO NOT REMOVE! ;-)
-		db 13,10,'Fast match finder for zlib, www.gildor.org',13,10,0
+		; This is a main magic line in this file, please DO NOT REMOVE! ;-)
+		db 13,10,' Fast match finder for zlib, http://www.gildor.org/en/projects/zlib ',13,10,0
 
 ;------------------------------------------------------------------------------
 
