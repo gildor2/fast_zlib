@@ -1,7 +1,7 @@
 // Compare original and optimized C code
 
 #define COMPARE_MATCHES
-#include "Zlib/deflate-debug.c"
+#include "deflate-debug.c"
 
 /* Prevent error when "longest_match" declared as "extern" but appears "static" */
 #undef local

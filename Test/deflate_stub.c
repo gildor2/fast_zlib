@@ -3,7 +3,7 @@
  */
 
 #define ASMV
-#include "Zlib/deflate.c"
+#include "deflate.c"
 
 /* Prevent error when "longest_match" declared as "extern" but appears "static" */
 #undef local
