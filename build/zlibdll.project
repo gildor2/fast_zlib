@@ -1,0 +1,106 @@
+# perl highlighting
+
+LIBC       = shared
+CONSOLE    = 1
+OPTIMIZE   = speed
+PDB        = 2
+OLDCRT     = 1
+
+R = ..						# root directory of the project
+ZLIB = $R/zlib
+obj=$R/obj
+
+# place where executable files will be generated
+DLLDIR = $R/build/binaries/$PLATFORM-$CONV
+
+!if "$COMPILER" eq "VisualC"
+#	CPP_EXCEPT = 0
+	OPTIONS = -GS- -GR- 								#?? VC8+
+	DEFINES += _USING_V110_SDK71_						# avoid some warnings, perhaps affects something else
+					# see http://tedwvc.wordpress.com/2014/01/01/how-to-target-xp-with-vc2012-or-vc2013-and-continue-to-use-the-windows-8-x-sdk/
+					# it looks like VS2013 requires _USING_V120_SDK71_
+	!if "$OLDCRT" eq "1"
+		DEFINES += OLDCRT vsnprintf=_vsnprintf	# define vsnprintf to use underscore version of the function because non-underscore is unavailable in msvcrt
+		WDKCRT = $R/../Libs/msvcrt
+		!include $WDKCRT/msvcrt.project
+	!endif
+!endif
+
+INCLUDES = $ZLIB
+OBJDIR = $obj/dll/$PLATFORM-$CONV
+
+COMMON_FILES = {
+	$ZLIB/adler32.c
+	$ZLIB/compress.c
+	$ZLIB/crc32.c
+	$ZLIB/gzclose.c
+	$ZLIB/gzlib.c
+	$ZLIB/gzread.c
+	$ZLIB/gzwrite.c
+	$ZLIB/infback.c
+	$ZLIB/inffast.c
+	$ZLIB/inflate.c
+	$ZLIB/inftrees.c
+	$ZLIB/trees.c
+	$ZLIB/uncompr.c
+	$ZLIB/zutil.c
+	$R/Test/deflate_stub.c
+}
+
+
+!if "$CONV" eq "cdecl"
+#--------------------------------------------------
+# Cdecl DLL target
+
+DEFFILE = $ZLIB/win32/zlib.def
+IMPLIB  = $DLLDIR/zlib1
+
+sources(DLL) = {
+	$COMMON_FILES
+	./zlib.rc			# for some unknown reason, RC.exe thrown an error "bad usage" if zlib.rc name provided without path
+}
+
+target(shared, $DLLDIR/zlib1.dll, DLL)
+
+# Cdecl static library target
+
+sources(STATIC) = {
+	$COMMON_FILES
+}
+
+target(static, $DLLDIR/zlibstat.lib, STATIC)
+
+#--------------------------------------------------
+!elif "$CONV" eq "winapi"
+#--------------------------------------------------
+# Winapi DLL target
+
+DEFFILE = $ZLIB/contrib/vstudio/vc10/zlibvc.def
+IMPLIB  = $DLLDIR/zlibwapi
+DEFINES += ZLIB_WINAPI NO_MSCVER_FILE64_FUNC
+ALLOW_MISSING_INCLUDES=1
+
+sources(DLL) = {
+	$COMMON_FILES
+	$ZLIB/contrib/minizip/ioapi.c
+	$ZLIB/contrib/minizip/iowin32.c
+	$ZLIB/contrib/minizip/unzip.c
+	$ZLIB/contrib/minizip/mztools.c
+	$ZLIB/contrib/minizip/zip.c
+	./zlib.rc			# for some unknown reason, RC.exe thrown an error "bad usage" if zlib.rc name provided without path
+}
+
+target(shared, $DLLDIR/zlibwapi.dll, DLL)
+
+# Winapi static library target
+
+sources(STATIC) = {
+	$COMMON_FILES
+}
+
+target(static, $DLLDIR/zlibstat.lib, STATIC)
+
+#--------------------------------------------------
+!else
+!error Unknown calling convension: "$CONV"
+!endif
