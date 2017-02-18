@@ -12,7 +12,7 @@
 #include <vector>
 #include <string>
 
-#include "zlib/zlib.h"
+#include "zlib.h"
 
 #define STR2(s) #s
 #define STR(s) STR2(s)

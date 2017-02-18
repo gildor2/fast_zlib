@@ -33,29 +33,30 @@ EXEDIR = obj/bin
 
 
 TEST_FILES    = Test/test.cpp
-DEFLATE_FILES = Test/Zlib/deflate.c
+DEFLATE_FILES = zlib/deflate.c
 
 # files shared between all builds for the same platform
 OBJDIR = obj/$PRJ-$PLATFORM
 
 sources(COMMON_FILES) = {
-	Test/Zlib/adler32.c
-	Test/Zlib/compress.c
-	Test/Zlib/crc32.c
-	Test/Zlib/gzclose.c
-	Test/Zlib/gzlib.c
-	Test/Zlib/gzread.c
-	Test/Zlib/gzwrite.c
-	Test/Zlib/infback.c
-	Test/Zlib/inffast.c
-	Test/Zlib/inflate.c
-	Test/Zlib/inftrees.c
-	Test/Zlib/trees.c
-	Test/Zlib/zutil.c
+	zlib/adler32.c
+	zlib/compress.c
+	zlib/crc32.c
+	zlib/gzclose.c
+	zlib/gzlib.c
+	zlib/gzread.c
+	zlib/gzwrite.c
+	zlib/infback.c
+	zlib/inffast.c
+	zlib/inflate.c
+	zlib/inftrees.c
+	zlib/trees.c
+	zlib/zutil.c
 }
 
 # files with different settings
 OBJDIR = obj/$PRJ-$PLATFORM-$TYPE
+INCLUDES = zlib
 
 !if "$TYPE" eq "Orig"
 

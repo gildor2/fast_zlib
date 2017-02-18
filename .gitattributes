@@ -11,3 +11,5 @@
 # We're using our own tools, however these will force Github to display wrong programming language statistics,
 # so ignore these.
 Tools/* linguist-vendored
+
+zlib/* linguist-vendored
