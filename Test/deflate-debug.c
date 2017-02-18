@@ -3,6 +3,13 @@
  * For conditions of distribution and use, see copyright notice in zlib.h
  */
 
+// This is a modified version of deflate.c from zlib 1.2.11. It contains some
+// modifications useful for debugging.
+#pragma optimize("", off)
+//#define MAX_COMPRESS
+
+//#define DUMP_DATA
+
 /*
  *  ALGORITHM
  *
@@ -88,12 +95,11 @@ local void putShortMSB    OF((deflate_state *s, uInt b));
 local void flush_pending  OF((z_streamp strm));
 local unsigned read_buf   OF((z_streamp strm, Bytef *buf, unsigned size));
 #ifdef ASMV
-#  pragma message("Assembler code may have bugs -- use at your own risk")
+//#  pragma message("Assembler code may have bugs -- use at your own risk")
       void match_init OF((void)); /* asm code initialization */
-      uInt longest_match  OF((deflate_state *s, IPos cur_match));
-#else
-local uInt longest_match  OF((deflate_state *s, IPos cur_match));
 #endif
+uInt longest_match  OF((deflate_state *s, IPos cur_match));
+uInt longest_match_orig  OF((deflate_state *s, IPos cur_match));
 
 #ifdef ZLIB_DEBUG
 local  void check_match OF((deflate_state *s, IPos start, IPos match,
@@ -143,7 +149,11 @@ local const config configuration_table[10] = {
 /* 6 */ {8,   16, 128, 128, deflate_slow},
 /* 7 */ {8,   32, 128, 256, deflate_slow},
 /* 8 */ {32, 128, 258, 1024, deflate_slow},
+#ifndef MAX_COMPRESS
 /* 9 */ {32, 258, 258, 4096, deflate_slow}}; /* max compression */
+#else
+/* 9 */ {258,258, 258,32767, deflate_slow}}; /* max compression */
+#endif
 #endif
 
 /* Note: the deflate() code requires max_lazy >= MIN_MATCH and max_chain >= 4
@@ -1073,10 +1083,17 @@ int ZEXPORT deflate (strm, flush)
 }
 
 /* ========================================================================= */
+
+#ifdef DUMP_DATA
+static int freqs[300]; //!!
+#include <stdio.h>
+#endif
+
 int ZEXPORT deflateEnd (strm)
     z_streamp strm;
 {
     int status;
+    int i;
 
     if (deflateStateCheck(strm)) return Z_STREAM_ERROR;
 
@@ -1090,6 +1107,16 @@ int ZEXPORT deflateEnd (strm)
 
     ZFREE(strm, strm->state);
     strm->state = Z_NULL;
+
+#ifdef DUMP_DATA
+	for (i = 0; i < 300; i++)
+	{
+		if (freqs[i])
+		{
+			printf("freq[%d] = %d\n", i, freqs[i]);
+		}
+	}
+#endif
 
     return status == BUSY_STATE ? Z_DATA_ERROR : Z_OK;
 }
@@ -1233,7 +1260,11 @@ local void lm_init (s)
 /* For 80x86 and 680x0, an optimized version will be provided in match.asm or
  * match.S. The code will be functionally equivalent.
  */
-local uInt longest_match(s, cur_match)
+#ifndef COMPARE_MATCHES
+uInt longest_match(s, cur_match)
+#else
+uInt longest_match_orig(s, cur_match)
+#endif
     deflate_state *s;
     IPos cur_match;                             /* current match */
 {
@@ -1964,8 +1995,36 @@ local block_state deflate_slow(s, flush)
              * of window index 0 (in particular we have to avoid a match
              * of the string with itself at the start of the input file).
              */
+#ifndef COMPARE_MATCHES
             s->match_length = longest_match (s, hash_head);
+#else
+            {
+                int match_len1 = longest_match_orig(s, hash_head);
+                int match_pos1 = s->match_start;
+                int match_len2 = longest_match(s, hash_head);
+                int match_pos2 = s->match_start;
+                if (match_len1 != match_len2 || match_pos1 != match_pos2) {
+                    /* repeat both for debugging */
+                    int match_len1a, match_len2a;
+                    printf("matches differs: match1(%d, %d), match2(%d, %d)\n", match_pos1, match_len1, match_pos2, match_len2);
+                    match_len1a = longest_match_orig(s, hash_head);
+                    match_len2a = longest_match(s, hash_head);
+                    exit(1);
+                } else {
+                    s->match_length = match_len1;
+                    s->match_start = match_pos1;
+                }
+            }
+#endif /* COMPARE_MATCHES */
             /* longest_match() sets match_start */
+#ifdef DUMP_DATA
+            if (s->match_length >= MIN_MATCH) {	//!!
+	            freqs[s->match_length]++;		//!!
+	            if (s->match_length == 3 || s->match_length == 15 || s->match_length == 18) {	//!!
+	            	printf("%d -> %d [%d]\n", s->strstart, s->match_start, s->match_length);	//!!
+	            }								//!!
+            }									//!!
+#endif
 
             if (s->match_length <= 5 && (s->strategy == Z_FILTERED
 #if TOO_FAR <= 32767
