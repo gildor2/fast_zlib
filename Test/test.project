@@ -7,8 +7,11 @@ CONSOLE    = 1
 OPTIMIZE   = speed
 PDB        = 2				# keep enabled, executable is almost the same, except embedded link to pdb file
 
+R = .						# root directory of the project
+ZLIB = $R/zlib
+
 # place where executable files will be generated
-EXEDIR = obj/bin
+EXEDIR = $R/obj/bin
 
 !if "$COMPILER" eq "VisualC"
 #	CPP_EXCEPT = 0
@@ -31,31 +34,31 @@ EXEDIR = obj/bin
 	OPTIONS   += -fno-stack-protector					# this will remove GLIBC_2.4 dependency
 !endif
 
-
 TEST_FILES    = Test/test.cpp
 DEFLATE_FILES = zlib/deflate.c
 
 # files shared between all builds for the same platform
-OBJDIR = obj/$PRJ-$PLATFORM
+OBJDIR = $R/obj/$PRJ-$PLATFORM
 
 sources(COMMON_FILES) = {
-	zlib/adler32.c
-	zlib/compress.c
-	zlib/crc32.c
-	zlib/gzclose.c
-	zlib/gzlib.c
-	zlib/gzread.c
-	zlib/gzwrite.c
-	zlib/infback.c
-	zlib/inffast.c
-	zlib/inflate.c
-	zlib/inftrees.c
-	zlib/trees.c
-	zlib/zutil.c
+	$ZLIB/adler32.c
+	$ZLIB/compress.c
+	$ZLIB/crc32.c
+	$ZLIB/gzclose.c
+	$ZLIB/gzlib.c
+	$ZLIB/gzread.c
+	$ZLIB/gzwrite.c
+	$ZLIB/infback.c
+	$ZLIB/inffast.c
+	$ZLIB/inflate.c
+	$ZLIB/inftrees.c
+	$ZLIB/trees.c
+	$ZLIB/uncompr.c
+	$ZLIB/zutil.c
 }
 
 # files with different settings
-OBJDIR = obj/$PRJ-$PLATFORM-$TYPE
+OBJDIR = $R/obj/$PRJ-$PLATFORM-$TYPE
 INCLUDES = zlib
 
 !if "$TYPE" eq "Orig"
