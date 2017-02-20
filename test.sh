@@ -2,12 +2,16 @@
 
 platform=win32
 
-if [ "$OSTYPE" == "linux-gnu" ] || [ "$OSTYPE" == "linux" ]; then
-	platform=unix
-fi
-
 noorig=0
 noasm=0
+nodll=0
+extraargs="--delete --compact"
+dllname=zlibwapi32.dll
+
+if [ "$OSTYPE" == "linux-gnu" ] || [ "$OSTYPE" == "linux" ]; then
+	platform=unix
+	nodll=1
+fi
 
 for arg in "$@"; do		# using quoted $@ will allow to correctly separate arguments like [ --path="some string with spaces" -debug ]
 #	echo "ARG=$arg"
@@ -18,14 +22,21 @@ for arg in "$@"; do		# using quoted $@ will allow to correctly separate argument
 	--noorig)
 		noorig=1
 		;;
+	--nodll)
+		nodll=1
+		;;
 	--win64)
 		platform=win64
+		dllname=zlibwapi64.dll
+		;;
+	--level=*|--exclude=*)
+		extraargs="$extraargs $arg"
 		;;
 	*)
 		if [ -d "$arg" ]; then
 			dir="$arg"
 		else
-			echo "Usage: test.sh [path] [--noasm] [--noorig] [--win64]"
+			echo "Usage: test.sh [path] [--noasm] [--noorig] [--nodll] [--win64] [--level=X]"
 			exit
 		fi
 	esac
@@ -45,6 +56,9 @@ echo "Testing for $platform"
 function DoTests
 {
 	local dir="$1"
+	shift
+
+	echo "--- Processing data at $dir ---"
 
 	if [ "$platform" == "unix" ]; then
 		# convert Windows path to Linux (VM)
@@ -54,18 +68,21 @@ function DoTests
 	fi
 
 	if [ "$platform" != "win64" ] && [ $noasm == 0 ]; then
-		obj/bin/test-Asm-$platform "$dir"
+		obj/bin/test-Asm-$platform "$dir" $extraargs $*
 	fi
-	obj/bin/test-C-$platform "$dir"
+	obj/bin/test-C-$platform "$dir" $extraargs $*
+	if [ $nodll == 0 ]; then
+		obj/bin/test-Orig-$platform "$dir" $extraargs --dll=test/dll/$dllname $*
+	fi
 	if [ $noorig == 0 ]; then
-		obj/bin/test-Orig-$platform "$dir"
+		obj/bin/test-Orig-$platform "$dir" $extraargs $*
 	fi
 }
 
 if [ "$dir" ]; then
 	DoTests "$dir"
 else
-	DoTests C:/Projects/Epic/UnrealEngine4-latest/Engine/Source/Runtime
+	DoTests C:/Projects/Epic/UnrealEngine4-latest/Engine/Source --exclude=ThirdParty
 	DoTests C:/3-UnrealEngine/4.14/Engine/Binaries/Win64
 	DoTests C:/1
 fi
