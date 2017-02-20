@@ -10,6 +10,8 @@ For more details and updates please visit [this page](http://www.gildor.org/en/p
 Source code repository is located [on Github](https://github.com/gildor2/fast_zlib). [Wiki page](https://github.com/gildor2/fast_zlib/wiki)
 contains some additional notes and test results.
 
+You may get precompiled binaries for Windows platform at [this location](https://github.com/gildor2/fast_zlib/releases/tag/First_release)
+
 
 Build instructions
 ------------------
@@ -36,7 +38,7 @@ is to making a file with contents looking like
 and linking zlib with this file instead of deflate.c.
 
 
-### Building assembly version
+### Building a 32-bit assembly version
 
 This version is compatible only with x86 platform. To build a matcher, please start with obtaining the copy of the
 [Netwide Assembler](http://www.nasm.us/)
@@ -48,6 +50,10 @@ For use with the Microsoft Visual Studio compile it with the following command l
 For the Watcom C use this:
 
     nasm match32.asm -f obj -o match.obj -D OMF_FORMAT
+
+For Linux use this command line:
+
+    nasm match32.asm -f elf32 -o match.o
 
 
 License
