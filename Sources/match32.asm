@@ -31,10 +31,9 @@
 
 ; Configuration (do not change unless for testing)
 
-%define COMPUTE_HASH				; should disable for different hash functions or for testing
 ;%define COMPUTE_HASH2				; useless - same ratio/speed
 ;%define REFINE_MATCHES				; this option produces slightly different compression results - sometimes better, sometimes worse
-%define MIN_CHAIN_LEN	64			; should be greater than max_chain_length in any deflate_fast() level (1-4)
+;%define ALWAYS_ZERO_OFFSET			; DEBUG: work just like original algorithm, with zero offset
 
 ; Debugging options
 
@@ -42,7 +41,17 @@
 
 
 ;------------------------------------------------------------------------------
-;		ZLib defines
+;		Zlib constants
+;------------------------------------------------------------------------------
+
+MIN_MATCH	equ	3			; should not be changed !
+MAX_MATCH	equ	258
+MIN_LOOKAHEAD	equ	(MAX_MATCH+MIN_MATCH+1)
+MIN_CHAIN_LEN	equ	64			; should be greater than max_chain_length in any deflate_fast() level (1-4)
+
+
+;------------------------------------------------------------------------------
+;		Zlib structures
 ;------------------------------------------------------------------------------
 
 ; this macro will allow us to reduce size of struc declaration
@@ -85,11 +94,6 @@
 		; .......... (more) ...........
 
 		endstruc
-
-
-MIN_MATCH	equ	3			; should not be changed !
-MAX_MATCH	equ	258
-MIN_LOOKAHEAD	equ	(MAX_MATCH+MIN_MATCH+1)
 
 
 ;------------------------------------------------------------------------------
@@ -234,11 +238,9 @@ _longest_match:
 %endif
 		add_var nice_match,[esi+DST.nice_match]
 		add_var str_start,[esi+DST.strstart]
-%ifdef COMPUTE_HASH
 		add_var hash_shift,[esi+DST.hash_shift]
 		add_var hash_heads,[esi+DST.head]
 		add_var hash_mask,[esi+DST.hash_mask]
-%endif
 
 		mov	eax,[esi+DST.window]	; match_base = s->window
 		add_var match_base,eax
@@ -319,10 +321,9 @@ _longest_match:
 		; ESI = wmask | chain_length << 16
 
 ;------------------------------------------------
-%ifdef COMPUTE_HASH
+%ifndef ALWAYS_ZERO_OFFSET
 		cmp	dword [best_len],MIN_MATCH
 		jbe	.main_loop
-
 		mov	[chain_mask],esi	; save value
 		mov	esi,[scan]
 		mov	edi,3			; index of last checked byte + start checking from pos+1 (pos+0->strstart->cur_match)
@@ -372,7 +373,7 @@ _longest_match:
 		neg	eax
 		add	[match_base],eax
 		add	[match_base2],eax
-%endif
+%endif ; ALWAYS_ZERO_OFFSET
 ;------------------------------------------------
 
 		xalign	4
@@ -633,6 +634,9 @@ _longest_match:
 		lea	ebx,[ebx+eax-3]
 		mov	[match_base2],ebx
 
+%ifdef ALWAYS_ZERO_OFFSET
+		jmp	.continue
+%endif
 		;?? goto COMPUTE_HASH2 instead of .continue
 		; if (len <= MIN_MATCH ...
 		cmp	eax,MIN_MATCH
@@ -696,6 +700,7 @@ _longest_match:
 .scan_match_end:
 		movzx	esi,si			; at this point ESI.H == 0xFFFF -- reset it
 %ifdef COMPUTE_HASH2
+		; Try to check verify hash heads to see if they points to longer distance than we have now
 		; Here: EDX=next_pos, ESI=wmask, EDI=prev
 		mov	ebp,[scan]
 		add	ebp,[best_len]
@@ -731,7 +736,7 @@ _longest_match:
 		sub	eax,MIN_MATCH-1
 		jmp	.set_offset
 .comp_hash_skip:
-%endif
+%endif ; COMPUTE_HASH2
 		mov	eax,[offset]		; EAX = offset
 		and	eax,esi			; offset &= wmask
 .set_offset:
