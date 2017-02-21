@@ -4,6 +4,7 @@ platform=win32
 
 noorig=0
 noasm=0
+noc=0
 nodll=0
 extraargs="--delete --compact"
 dllname=zlibwapi32.dll
@@ -19,11 +20,24 @@ for arg in "$@"; do		# using quoted $@ will allow to correctly separate argument
 	--noasm)
 		noasm=1
 		;;
+	--noc)
+		noc=1
+		;;
 	--noorig)
 		noorig=1
 		;;
 	--nodll)
 		nodll=1
+		;;
+	--c)
+		noasm=1
+		nodll=1
+		noorig=1
+		;;
+	--asm)
+		noc=1
+		nodll=1
+		noorig=1
 		;;
 	--win64)
 		platform=win64
@@ -36,7 +50,15 @@ for arg in "$@"; do		# using quoted $@ will allow to correctly separate argument
 		if [ -d "$arg" ]; then
 			dir="$arg"
 		else
-			echo "Usage: test.sh [path] [--noasm] [--noorig] [--nodll] [--win64] [--level=X]"
+			cat <<EOF
+Usage: test.sh [path] [options]
+Options:
+  --no[asm|c|orig|dll]  disable particular target
+  --c                   test only C implementation
+  --asm                 test only Asm implementation
+  --win64               test for 64-bit Windows
+  --level=X             select compression level
+EOF
 			exit
 		fi
 	esac
@@ -45,6 +67,7 @@ done
 # build all targets with hiding build output
 target=vc-$platform
 [ "$platform" == "unix" ] && target=linux	# shame, "unix" vs "linux"
+[ "$platform" == "win64" ] && noasm=1
 
 if ! ./build.sh $target > /dev/null 2>&1; then
 	echo "Build failed!"
@@ -67,10 +90,12 @@ function DoTests
 		fi
 	fi
 
-	if [ "$platform" != "win64" ] && [ $noasm == 0 ]; then
+	if [ $noasm == 0 ]; then
 		obj/bin/test-Asm-$platform "$dir" $extraargs $*
 	fi
-	obj/bin/test-C-$platform "$dir" $extraargs $*
+	if [ $noc == 0 ]; then
+		obj/bin/test-C-$platform "$dir" $extraargs $*
+	fi
 	if [ $nodll == 0 ]; then
 		obj/bin/test-Orig-$platform "$dir" $extraargs --dll=test/dll/$dllname $*
 	fi
