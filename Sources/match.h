@@ -206,6 +206,8 @@ local uInt longest_match(s, cur_match)
                  */
                 IPos    pos, next_pos;
                 register int i;
+                register uInt hash;
+                Bytef* scan_end;
 
                 /* go back to offset 0 */
                 cur_match -= offset;
@@ -220,15 +222,33 @@ local uInt longest_match(s, cur_match)
                         offset = i;
                     }
                 }
-                /* switch cur_match to next_pos chain */
+                /* Switch cur_match to next_pos chain */
                 cur_match = next_pos;
+
+                /* Try hash head at len-(MIN_MATCH-1) position to see if we could get
+                 * a better cur_match at the end of string. Using (MIN_MATCH-1) lets
+                 * us to include one more byte into hash - the byte which will be checked
+                 * in main loop now, and which allows to grow match by 1.
+                 */
+                hash = 0;
+                scan_end = scan + len - MIN_MATCH + 1;
+                UPDATE_HASH(s, hash, scan_end[0]);
+                UPDATE_HASH(s, hash, scan_end[1]);
+                UPDATE_HASH(s, hash, scan_end[2]);
+                pos = s->head[hash];
+                if (pos < cur_match) {
+                    offset = len - MIN_MATCH + 1;
+                    if (pos <= limit_base + offset) goto break_matching;
+                    cur_match = pos;
+                }
+
                 /* update offset-dependent vars */
                 limit = limit_base + offset;
                 match_base = s->window - offset;
                 UPDATE_MATCH_BASE2;
                 continue;
             } else {
-                /* no way to change offset - simply update match_base2 for
+                /* There's no way to change offset - simply update match_base2 for
                  * new best_len (this is similar to what original algorithm does)
                  */
                 UPDATE_MATCH_BASE2;

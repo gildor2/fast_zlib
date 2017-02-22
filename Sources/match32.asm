@@ -31,9 +31,9 @@
 
 ; Configuration (do not change unless for testing)
 
-;%define COMPUTE_HASH2				; useless - same ratio/speed
 ;%define REFINE_MATCHES				; this option produces slightly different compression results - sometimes better, sometimes worse
-;%define ALWAYS_ZERO_OFFSET			; DEBUG: work just like original algorithm, with zero offset
+;%define ALWAYS_ZERO_OFFSET			; DEBUG: work just like original algorithm, with zero offset; the performance will be nearly equal
+						; to original zlib with asm optimization
 
 ; Debugging options
 
@@ -637,7 +637,6 @@ _longest_match:
 %ifdef ALWAYS_ZERO_OFFSET
 		jmp	.continue
 %endif
-		;?? goto COMPUTE_HASH2 instead of .continue
 		; if (len <= MIN_MATCH ...
 		cmp	eax,MIN_MATCH
 		jle	.continue
@@ -689,19 +688,23 @@ _longest_match:
 		movzx	ebx,word [edi+ebp*2]
 		cmp	ebx,ecx
 		jbe	.break_match		; one of chains either too far, or NIL
+		inc	ecx			; update limit: limit = limit_base+i
 		cmp	ebx,edx
 		jnc	.scan_match_loop	; current chain is less distant than remembered
 		mov	edx,ebx
 		sub	ebp,eax			; offset = EBP-old_match
 		mov	[offset],ebp		; NOTE: should mask offset with "wmask" later
-		add	ebp,eax			; return EBP, add EAX back
+		add	ebp,eax			; revert EBP value (add EAX back)
 		jmp	.scan_match_loop
 
 .scan_match_end:
 		movzx	esi,si			; at this point ESI.H == 0xFFFF -- reset it
-%ifdef COMPUTE_HASH2
-		; Try to check verify hash heads to see if they points to longer distance than we have now
-		; Here: EDX=next_pos, ESI=wmask, EDI=prev
+		; Try to check verify hash head at the end of current string, including one more byte,
+		; to see if it points to longer distance than we have now.
+		; Here:
+		; EDX = next_pos
+		; ESI = wmask
+		; EDI = prev
 		mov	ebp,[scan]
 		add	ebp,[best_len]
 		mov	ecx,[hash_shift]	; ECX = hash_shift
@@ -710,36 +713,27 @@ _longest_match:
 		xor	al,[ebp-MIN_MATCH+2]
 		shl	eax,cl
 		xor	al,[ebp-MIN_MATCH+3]
-		mov	ecx,[limit_base]	; ECX = limit
 		and	eax,[hash_mask]
 		; EAX = hash
 		mov	ebp,[hash_heads]
 		; check head[hash]
-		movzx	eax,word [ebp+eax*2]
-		cmp	eax,ecx			; limit
-		jbe	.break_match
-		cmp	eax,edx
-		jb	.comp_hash_found
-		; check hash chains
-%rep 0		; if enable this, can skip 1st match
-		and	eax,esi			; &= wmask
-		movzx	eax,word [edi+eax*2]	; prev[EAX]
-		cmp	eax,ecx			; limit
-		jbe	.break_match
-		cmp	eax,edx
-		jb	.comp_hash_found
-%endrep
-		jmp	.comp_hash_skip
-.comp_hash_found:
-		mov	edx,eax
-		mov	eax,[best_len]
+		movzx	ebx,word [ebp+eax*2]	; EBX = hash_heads[hash]
+		mov	eax,[best_len]		; compute offset to EAX
 		sub	eax,MIN_MATCH-1
+		mov	ecx,[limit_base]	; ECX = limit_base + offset
+		add	ecx,eax
+		cmp	ebx,ecx			; check limit
+		jbe	.break_match
+		cmp	ebx,edx
+		jae	.comp_hash_skip		; this is not a better match
+		mov	edx,ebx
 		jmp	.set_offset
 .comp_hash_skip:
-%endif ; COMPUTE_HASH2
 		mov	eax,[offset]		; EAX = offset
-		and	eax,esi			; offset &= wmask
 .set_offset:
+		and	eax,esi			; offset &= wmask
+		; EAX = offset
+		; EDX = new match
 		mov	[offset],eax
 		mov	ebx,[old_offset]
 		sub	ebx,eax			; EBX = old_offset-offset
@@ -757,7 +751,7 @@ _longest_match:
 
 ;------------------------------------------------------------------------------
 
-		; This is a main magic line in this file, please DO NOT REMOVE! ;-)
+		; Please do not remove this string!
 		db 13,10,' Fast match finder for zlib, http://www.gildor.org/en/projects/zlib ',13,10,0
 
 ;------------------------------------------------------------------------------
