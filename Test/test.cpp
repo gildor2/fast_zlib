@@ -114,11 +114,14 @@ static bool IsFileExcluded(const char* filename)
 	return false;
 }
 
-static bool ScanDirectory(const char *dir, bool recurse = true)
+static bool ScanDirectory(const char *dir, bool recurse = true, int baseDirLen = -1)
 {
 	char Path[1024];
 	bool res = true;
 //	printf("Scan %s\n", dir);
+	if (baseDirLen < 0)
+		baseDirLen = strlen(dir) + 1;
+
 #if _WIN32
 	sprintf(Path, "%s/*.*", dir);
 	_finddatai64_t found;
@@ -128,12 +131,12 @@ static bool ScanDirectory(const char *dir, bool recurse = true)
 	{
 		if (found.name[0] == '.') continue;			// "." or ".."
 		sprintf(Path, "%s/%s", dir, found.name);
-		if (IsFileExcluded(Path)) continue;
+		if (IsFileExcluded(Path + baseDirLen)) continue;
 		// directory -> recurse
 		if (found.attrib & _A_SUBDIR)
 		{
 			if (recurse)
-				res = ScanDirectory(Path, recurse);
+				res = ScanDirectory(Path, recurse, baseDirLen);
 			else
 				res = true;
 		}
@@ -152,7 +155,7 @@ static bool ScanDirectory(const char *dir, bool recurse = true)
 	{
 		if (ent->d_name[0] == '.') continue;			// "." or ".."
 		sprintf(Path, "%s/%s", dir, ent->d_name);
-		if (IsFileExcluded(Path)) continue;
+		if (IsFileExcluded(Path + baseDirLen)) continue;
 		// directory -> recurse
 		// note: using 'stat64' here because 'stat' ignores large files
 		struct stat64 buf;
@@ -160,7 +163,7 @@ static bool ScanDirectory(const char *dir, bool recurse = true)
 		if (S_ISDIR(buf.st_mode))
 		{
 			if (recurse)
-				res = ScanDirectory(Path, recurse);
+				res = ScanDirectory(Path, recurse, baseDirLen);
 			else
 				res = true;
 		}
