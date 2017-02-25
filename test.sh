@@ -43,7 +43,7 @@ for arg in "$@"; do		# using quoted $@ will allow to correctly separate argument
 		platform=win64
 		dllname=zlibwapi64.dll
 		;;
-	--level=*|--exclude=*)
+	--level=*|--exclude=*|--verify)
 		extraargs="$extraargs $arg"
 		;;
 	*)
@@ -58,6 +58,8 @@ Options:
   --asm                 test only Asm implementation
   --win64               test for 64-bit Windows
   --level=X             select compression level
+  --exclude=dir         exclude directory from testing
+  --verify              unpack compressed file
 EOF
 			exit
 		fi

@@ -75,6 +75,25 @@ static int gzwrite_imp(gzFile file, voidpc buf, unsigned len)
 	}
 }
 
+static int gzread_imp(gzFile file, voidp buf, unsigned len)
+{
+	if (zlibDll)
+	{
+		typedef int (WINAPI *gzread_f)(gzFile file, voidp buf, unsigned len);
+		static gzread_f gzread_ptr = NULL;
+		if (gzread_ptr == NULL)
+		{
+			gzread_ptr = (gzread_f)GetProcAddress(zlibDll, "gzread");
+//			assert(gzread_ptr);
+		}
+		return gzread_ptr(file, buf, len);
+	}
+	else
+	{
+		return gzread(file, buf, len);
+	}
+}
+
 static int gzclose_imp(gzFile file)
 {
 	if (zlibDll)
@@ -95,8 +114,9 @@ static int gzclose_imp(gzFile file)
 }
 
 // Hook gzip functions
-#define gzopen gzopen_imp
+#define gzopen  gzopen_imp
 #define gzwrite gzwrite_imp
+#define gzread  gzread_imp
 #define gzclose gzclose_imp
 
 #endif // _WIN32
@@ -219,6 +239,7 @@ int main(int argc, const char **argv)
 			"  --dll=<file>      use external WINAPI zlib dll\n"
 #endif
 			"  --compact         use compact output\n"
+			"  --verify          decompress generated file for testing\n"
 			"  --delete          erase compressed file after completion\n"
 		);
 		return 1;
@@ -228,6 +249,7 @@ int main(int argc, const char **argv)
 	const char* dirName = NULL;
 	char level = '9';
 	bool compactOutput = false;
+	bool unpackFile = false;
 	bool eraseCompressedFile = false;
 
 	for (int i = 1; i < argc; i++)
@@ -249,6 +271,10 @@ int main(int argc, const char **argv)
 			else if (!stricmp(arg, "compact"))
 			{
 				compactOutput = true;
+			}
+			else if (!stricmp(arg, "verify"))
+			{
+				unpackFile = true;
 			}
 			else if (!stricmp(arg, "delete"))
 			{
@@ -320,12 +346,6 @@ int main(int argc, const char **argv)
 	int compressedSize = ftell(f);
 	fclose(f);
 
-	// erase compressed file
-	if (eraseCompressedFile)
-	{
-		remove(compressedFile);
-	}
-
 	// print results
 	const char* method = STR(VERSION);
 #if _WIN32
@@ -341,8 +361,42 @@ int main(int argc, const char **argv)
 	{
 		printf("%6s:%c   Data: %.1f Mb   ", method, level, originalSizeMb);
 	}
-	printf("Time: %-5.1f s   Size: %d bytes   Speed: %5.2f Mb/s   Ratio: %.2f\n",
+	printf("Time: %-5.1f s   Size: %d bytes   Speed: %5.2f Mb/s   Ratio: %.2f",
 		time, compressedSize, totalDataSize / double(1<<20) / time, (double)totalDataSize / compressedSize);
+
+	if (unpackFile)
+	{
+		gz = gzopen(compressedFile, "rb");
+		clocks = clock();
+
+		int result;
+		for (int unpSize = 0; unpSize < totalDataSize; /* nothing */)
+		{
+			result = gzread(gz, buffer, BUFFER_SIZE);
+			if (result < 0)
+			{
+			unpack_error:
+				printf("   Unpack ERROR %d\n", result);
+				exit(1);
+			}
+			unpSize += result;
+		}
+
+		result = gzclose(gz);
+		if (result != Z_OK) goto unpack_error;
+
+		clocks = clock() - clocks;
+		time = clocks / (float)CLOCKS_PER_SEC;
+		printf("   Unpack: %5.2f Mb/s", totalDataSize / double(1<<20) / time);
+	}
+
+	printf("\n");
+
+	// erase compressed file
+	if (eraseCompressedFile)
+	{
+		remove(compressedFile);
+	}
 
 	return 0;
 }
