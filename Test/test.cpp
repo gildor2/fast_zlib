@@ -36,19 +36,21 @@
 #include <windows.h>
 
 static HMODULE zlibDll = NULL;
+static bool bWinapiCalls = false;
 
 static gzFile gzopen_imp(const char* filename, const char* params)
 {
 	if (zlibDll)
 	{
-		typedef gzFile (WINAPI *gzopen_f)(const char* filename, const char* params);
+		typedef gzFile (       *gzopen_f )(const char* filename, const char* params);
+		typedef gzFile (WINAPI *gzopen_fw)(const char* filename, const char* params);
 		static gzopen_f gzopen_ptr = NULL;
 		if (gzopen_ptr == NULL)
 		{
 			gzopen_ptr = (gzopen_f)GetProcAddress(zlibDll, "gzopen");
 //			assert(gzopen_ptr);
 		}
-		return gzopen_ptr(filename, params);
+		return bWinapiCalls ? ((gzopen_fw)gzopen_ptr)(filename, params) : gzopen_ptr(filename, params);
 	}
 	else
 	{
@@ -60,14 +62,15 @@ static int gzwrite_imp(gzFile file, voidpc buf, unsigned len)
 {
 	if (zlibDll)
 	{
-		typedef int (WINAPI *gzwrite_f)(gzFile file, voidpc buf, unsigned len);
+		typedef int (       *gzwrite_f )(gzFile file, voidpc buf, unsigned len);
+		typedef int (WINAPI *gzwrite_fw)(gzFile file, voidpc buf, unsigned len);
 		static gzwrite_f gzwrite_ptr = NULL;
 		if (gzwrite_ptr == NULL)
 		{
 			gzwrite_ptr = (gzwrite_f)GetProcAddress(zlibDll, "gzwrite");
 //			assert(gzwrite_ptr);
 		}
-		return gzwrite_ptr(file, buf, len);
+		return bWinapiCalls ? ((gzwrite_fw)gzwrite_ptr)(file, buf, len) : gzwrite_ptr(file, buf, len);
 	}
 	else
 	{
@@ -79,14 +82,15 @@ static int gzread_imp(gzFile file, voidp buf, unsigned len)
 {
 	if (zlibDll)
 	{
-		typedef int (WINAPI *gzread_f)(gzFile file, voidp buf, unsigned len);
+		typedef int (       *gzread_f )(gzFile file, voidp buf, unsigned len);
+		typedef int (WINAPI *gzread_fw)(gzFile file, voidp buf, unsigned len);
 		static gzread_f gzread_ptr = NULL;
 		if (gzread_ptr == NULL)
 		{
 			gzread_ptr = (gzread_f)GetProcAddress(zlibDll, "gzread");
 //			assert(gzread_ptr);
 		}
-		return gzread_ptr(file, buf, len);
+		return bWinapiCalls ? ((gzread_fw)gzread_ptr)(file, buf, len) : gzread_ptr(file, buf, len);
 	}
 	else
 	{
@@ -98,14 +102,15 @@ static int gzclose_imp(gzFile file)
 {
 	if (zlibDll)
 	{
-		typedef int (WINAPI *gzclose_f)(gzFile file);
+		typedef int (       *gzclose_f )(gzFile file);
+		typedef int (WINAPI *gzclose_fw)(gzFile file);
 		static gzclose_f gzclose_ptr = NULL;
 		if (gzclose_ptr == NULL)
 		{
 			gzclose_ptr = (gzclose_f)GetProcAddress(zlibDll, "gzclose");
 //			assert(gzclose_ptr);
 		}
-		return gzclose_ptr(file);
+		return bWinapiCalls ? ((gzclose_fw)gzclose_ptr)(file) : gzclose_ptr(file);
 	}
 	else
 	{
@@ -252,6 +257,10 @@ int main(int argc, const char **argv)
 	bool unpackFile = false;
 	bool eraseCompressedFile = false;
 
+#if _WIN32
+	const char* dllName = NULL;
+#endif
+
 	for (int i = 1; i < argc; i++)
 	{
 		const char* arg = argv[i];
@@ -284,10 +293,11 @@ int main(int argc, const char **argv)
 			else if (!strnicmp(arg, "dll=", 4))
 			{
 				if (zlibDll != NULL) goto usage;
-				zlibDll = LoadLibrary(arg+4);
+				dllName = arg+4;
+				zlibDll = LoadLibrary(dllName);
 				if (zlibDll == NULL)
 				{
-					printf("Error: unable to load zlib.dll %s\n", arg+4);
+					printf("Error: unable to load zlib.dll %s\n", dllName);
 					exit(1);
 				}
 			}
@@ -318,6 +328,16 @@ int main(int argc, const char **argv)
 		exit(1);
 	}
 //	printf("%d files\n", fileList.size());
+
+#if _WIN32
+	if (zlibDll)
+	{
+		typedef unsigned (*zlibCompileFlags_f)();
+		zlibCompileFlags_f zlibCompileFlags_ptr = (zlibCompileFlags_f)GetProcAddress(zlibDll, "zlibCompileFlags");
+		unsigned zlibFlags = zlibCompileFlags_ptr();
+		bWinapiCalls = (zlibFlags & 0x400) != 0;
+	}
+#endif // _WIN32
 
 	clock_t clocks = 0;
 
@@ -389,6 +409,13 @@ int main(int argc, const char **argv)
 		time = clocks / (float)CLOCKS_PER_SEC;
 		printf("   Unpack: %5.2f Mb/s", totalDataSize / double(1<<20) / time);
 	}
+
+#if _WIN32
+	if (zlibDll)
+	{
+		printf("  (%s)", dllName);
+	}
+#endif
 
 	printf("\n");
 

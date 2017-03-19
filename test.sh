@@ -2,16 +2,20 @@
 
 platform=win32
 
-noorig=0
-noasm=0
-noc=0
-nodll=0
+noorig=0		# use original C code
+noasm=0			# usa asm code
+noc=0			# use optimized C code
+nodll=0			# use dll with asm optimizations (original code)
+nong=0			# use zlib-ng
 extraargs="--delete --compact"
+
 dllname=zlibwapi32.dll
+dllname_ng=zlib-ng_32.dll
 
 if [ "$OSTYPE" == "linux-gnu" ] || [ "$OSTYPE" == "linux" ]; then
 	platform=unix
 	nodll=1
+	nong=1
 fi
 
 for arg in "$@"; do		# using quoted $@ will allow to correctly separate arguments like [ --path="some string with spaces" -debug ]
@@ -29,19 +33,32 @@ for arg in "$@"; do		# using quoted $@ will allow to correctly separate argument
 	--nodll)
 		nodll=1
 		;;
+	--nong)
+		nong=1
+		;;
 	--c)
 		noasm=1
 		nodll=1
 		noorig=1
+		nong=1
 		;;
 	--asm)
 		noc=1
 		nodll=1
 		noorig=1
+		nong=1
+		;;
+	--ng)
+		noc=1
+		noasm=1
+		nodll=1
+		noorig=1
+		nong=0
 		;;
 	--win64)
 		platform=win64
 		dllname=zlibwapi64.dll
+		dllname_ng=zlib-ng_64.dll
 		;;
 	--level=*|--exclude=*|--verify)
 		extraargs="$extraargs $arg"
@@ -53,13 +70,14 @@ for arg in "$@"; do		# using quoted $@ will allow to correctly separate argument
 			cat <<EOF
 Usage: test.sh [path] [options]
 Options:
-  --no[asm|c|orig|dll]  disable particular target
-  --c                   test only C implementation
-  --asm                 test only Asm implementation
-  --win64               test for 64-bit Windows
-  --level=X             select compression level
-  --exclude=dir         exclude directory from testing
-  --verify              unpack compressed file
+  --no[asm|c|orig|dll|ng]  disable particular target
+  --c                      test only C implementation
+  --asm                    test only Asm implementation
+  --ng                     test only zlib-ng
+  --win64                  test for 64-bit Windows
+  --level=X                select compression level
+  --exclude=dir            exclude directory from testing
+  --verify                 unpack compressed file
 EOF
 			exit
 		fi
@@ -98,6 +116,9 @@ function DoTests
 	if [ $noc == 0 ]; then
 		obj/bin/test-C-$platform "$dir" $extraargs $*
 	fi
+	if [ $nong == 0 ]; then
+		obj/bin/test-Orig-$platform "$dir" $extraargs --dll=test/dll/$dllname_ng $*
+	fi
 	if [ $nodll == 0 ]; then
 		obj/bin/test-Orig-$platform "$dir" $extraargs --dll=test/dll/$dllname $*
 	fi
@@ -112,4 +133,6 @@ else
 	DoTests C:/Projects/Epic/UnrealEngine4-latest/Engine/Source --exclude=ThirdParty
 	DoTests C:/3-UnrealEngine/4.14/Engine/Binaries/Win64
 	DoTests C:/1
+#	DoTests C:/Data/Images
+#	DoTests C:/Downloads/torrent/Trollhunters
 fi
