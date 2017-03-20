@@ -24,99 +24,50 @@
 
 #include "zlib.h"
 
+// Defines controlling size of compressed data
+#define BUFFER_SIZE		(256<<20)
+#define MAX_ITERATIONS	1			// number of passes to fully fill buffer, i.e. total processed data size will be up to (BUFFER_SIZE * MAX_ITERATIONS)
+
+#if _WIN32
+#define USE_DLL 1
+#endif
+
 #define STR2(s) #s
 #define STR(s) STR2(s)
 
-#define BUFFER_SIZE		(256<<20)
-#define MAX_ITERATIONS	1			// number of passes to fully fill buffer, i.e. total processed data size will be up to (BUFFER_SIZE * MAX_ITERATIONS)
-#define COMPRESS_LEVEL	9
+#if USE_DLL
 
-#if _WIN32
-
-#include <windows.h>
+#include <windows.h>				// for DLL stuff
 
 static HMODULE zlibDll = NULL;
 static bool bWinapiCalls = false;
 
-static gzFile gzopen_imp(const char* filename, const char* params)
-{
-	if (zlibDll)
-	{
-		typedef gzFile (       *gzopen_f )(const char* filename, const char* params);
-		typedef gzFile (WINAPI *gzopen_fw)(const char* filename, const char* params);
-		static gzopen_f gzopen_ptr = NULL;
-		if (gzopen_ptr == NULL)
-		{
-			gzopen_ptr = (gzopen_f)GetProcAddress(zlibDll, "gzopen");
-//			assert(gzopen_ptr);
-		}
-		return bWinapiCalls ? ((gzopen_fw)gzopen_ptr)(filename, params) : gzopen_ptr(filename, params);
-	}
-	else
-	{
-		return gzopen(filename, params);
-	}
+// Make a wrappers for zlib functions allowing to call statically-linked function, or cdecl or winapi dll function.
+// This macro receives argument list twice - with and without type specifiers.
+#define DECLARE_WRAPPER(type, name, prototype, args)\
+static type name##_imp prototype					\
+{													\
+	if (zlibDll)									\
+	{												\
+		typedef type (*name##_f) prototype;			\
+		typedef type (WINAPI *name##_fw) prototype;	\
+		static name##_f func_ptr = NULL;			\
+		if (func_ptr == NULL)						\
+		{											\
+			func_ptr = (name##_f)GetProcAddress(zlibDll, STR(name)); \
+		}											\
+		return bWinapiCalls ? ((name##_fw)func_ptr) args : func_ptr args; \
+	}												\
+	else											\
+	{												\
+		return name args;							\
+	}												\
 }
 
-static int gzwrite_imp(gzFile file, voidpc buf, unsigned len)
-{
-	if (zlibDll)
-	{
-		typedef int (       *gzwrite_f )(gzFile file, voidpc buf, unsigned len);
-		typedef int (WINAPI *gzwrite_fw)(gzFile file, voidpc buf, unsigned len);
-		static gzwrite_f gzwrite_ptr = NULL;
-		if (gzwrite_ptr == NULL)
-		{
-			gzwrite_ptr = (gzwrite_f)GetProcAddress(zlibDll, "gzwrite");
-//			assert(gzwrite_ptr);
-		}
-		return bWinapiCalls ? ((gzwrite_fw)gzwrite_ptr)(file, buf, len) : gzwrite_ptr(file, buf, len);
-	}
-	else
-	{
-		return gzwrite(file, buf, len);
-	}
-}
-
-static int gzread_imp(gzFile file, voidp buf, unsigned len)
-{
-	if (zlibDll)
-	{
-		typedef int (       *gzread_f )(gzFile file, voidp buf, unsigned len);
-		typedef int (WINAPI *gzread_fw)(gzFile file, voidp buf, unsigned len);
-		static gzread_f gzread_ptr = NULL;
-		if (gzread_ptr == NULL)
-		{
-			gzread_ptr = (gzread_f)GetProcAddress(zlibDll, "gzread");
-//			assert(gzread_ptr);
-		}
-		return bWinapiCalls ? ((gzread_fw)gzread_ptr)(file, buf, len) : gzread_ptr(file, buf, len);
-	}
-	else
-	{
-		return gzread(file, buf, len);
-	}
-}
-
-static int gzclose_imp(gzFile file)
-{
-	if (zlibDll)
-	{
-		typedef int (       *gzclose_f )(gzFile file);
-		typedef int (WINAPI *gzclose_fw)(gzFile file);
-		static gzclose_f gzclose_ptr = NULL;
-		if (gzclose_ptr == NULL)
-		{
-			gzclose_ptr = (gzclose_f)GetProcAddress(zlibDll, "gzclose");
-//			assert(gzclose_ptr);
-		}
-		return bWinapiCalls ? ((gzclose_fw)gzclose_ptr)(file) : gzclose_ptr(file);
-	}
-	else
-	{
-		return gzclose(file);
-	}
-}
+DECLARE_WRAPPER(gzFile, gzopen, (const char* filename, const char* params), (filename, params))
+DECLARE_WRAPPER(int, gzwrite, (gzFile file, voidpc buf, unsigned len), (file, buf, len))
+DECLARE_WRAPPER(int, gzread, (gzFile file, voidp buf, unsigned len), (file, buf, len))
+DECLARE_WRAPPER(int, gzclose, (gzFile file), (file))
 
 // Hook gzip functions
 #define gzopen  gzopen_imp
@@ -124,7 +75,7 @@ static int gzclose_imp(gzFile file)
 #define gzread  gzread_imp
 #define gzclose gzclose_imp
 
-#endif // _WIN32
+#endif // USE_DLL
 
 std::vector<std::string> fileList;
 std::vector<std::string> fileExclude;
@@ -147,7 +98,7 @@ static bool ScanDirectory(const char *dir, bool recurse = true, int baseDirLen =
 	if (baseDirLen < 0)
 		baseDirLen = strlen(dir) + 1;
 
-#if _WIN32
+#if USE_DLL
 	sprintf(Path, "%s/*.*", dir);
 	_finddatai64_t found;
 	intptr_t hFind = _findfirsti64(Path, &found);
@@ -240,7 +191,7 @@ int main(int argc, const char **argv)
 			"Options:\n"
 			"  --level=[0-9]     set compression level, default 9\n"
 			"  --exclude=<dir>   exclude specified directory from tests\n"
-#if _WIN32
+#if USE_DLL
 			"  --dll=<file>      use external WINAPI zlib dll\n"
 #endif
 			"  --compact         use compact output\n"
@@ -257,7 +208,7 @@ int main(int argc, const char **argv)
 	bool unpackFile = false;
 	bool eraseCompressedFile = false;
 
-#if _WIN32
+#if USE_DLL
 	const char* dllName = NULL;
 #endif
 
@@ -289,7 +240,7 @@ int main(int argc, const char **argv)
 			{
 				eraseCompressedFile = true;
 			}
-#if _WIN32
+#if USE_DLL
 			else if (!strnicmp(arg, "dll=", 4))
 			{
 				if (zlibDll != NULL) goto usage;
@@ -301,7 +252,7 @@ int main(int argc, const char **argv)
 					exit(1);
 				}
 			}
-#endif // _WIN32
+#endif // USE_DLL
 			else
 			{
 				goto usage;
@@ -329,7 +280,7 @@ int main(int argc, const char **argv)
 	}
 //	printf("%d files\n", fileList.size());
 
-#if _WIN32
+#if USE_DLL
 	if (zlibDll)
 	{
 		typedef unsigned (*zlibCompileFlags_f)();
@@ -337,7 +288,7 @@ int main(int argc, const char **argv)
 		unsigned zlibFlags = zlibCompileFlags_ptr();
 		bWinapiCalls = (zlibFlags & 0x400) != 0;
 	}
-#endif // _WIN32
+#endif // USE_DLL
 
 	clock_t clocks = 0;
 
@@ -368,7 +319,7 @@ int main(int argc, const char **argv)
 
 	// print results
 	const char* method = STR(VERSION);
-#if _WIN32
+#if USE_DLL
 	if (zlibDll) method = "DLL";
 #endif
 	float time = clocks / (float)CLOCKS_PER_SEC;
@@ -410,11 +361,8 @@ int main(int argc, const char **argv)
 		printf("   Unpack: %5.2f Mb/s", totalDataSize / double(1<<20) / time);
 	}
 
-#if _WIN32
-	if (zlibDll)
-	{
-		printf("  (%s)", dllName);
-	}
+#if USE_DLL
+	if (zlibDll) printf("  (%s)", dllName);
 #endif
 
 	printf("\n");
