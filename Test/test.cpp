@@ -68,12 +68,16 @@ DECLARE_WRAPPER(gzFile, gzopen, (const char* filename, const char* params), (fil
 DECLARE_WRAPPER(int, gzwrite, (gzFile file, voidpc buf, unsigned len), (file, buf, len))
 DECLARE_WRAPPER(int, gzread, (gzFile file, voidp buf, unsigned len), (file, buf, len))
 DECLARE_WRAPPER(int, gzclose, (gzFile file), (file))
+DECLARE_WRAPPER(int, compress2, (Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen, int level), (dest, destLen, source, sourceLen, level));
+DECLARE_WRAPPER(int, uncompress, (Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen), (dest, destLen, source, sourceLen));
 
 // Hook gzip functions
 #define gzopen  gzopen_imp
 #define gzwrite gzwrite_imp
 #define gzread  gzread_imp
 #define gzclose gzclose_imp
+#define compress2 compress2_imp
+#define uncompress uncompress_imp
 
 #endif // USE_DLL
 
@@ -158,6 +162,8 @@ static unsigned char buffer[BUFFER_SIZE];
 static int bytesInBuffer = 0;
 static int currentFile = 0;
 
+static unsigned char compressedBuffer[BUFFER_SIZE+16384];
+
 static bool FillBuffer()
 {
 	bytesInBuffer = 0;
@@ -195,6 +201,7 @@ int main(int argc, const char **argv)
 			"  --dll=<file>      use external WINAPI zlib dll\n"
 #endif
 			"  --compact         use compact output\n"
+			"  --memory          use in-memory compression instead of gzip\n"
 			"  --verify          decompress generated file for testing\n"
 			"  --delete          erase compressed file after completion\n"
 		);
@@ -203,10 +210,11 @@ int main(int argc, const char **argv)
 
 	// parse command line
 	const char* dirName = NULL;
-	char level = '9';
+	int level = 9;
 	bool compactOutput = false;
 	bool unpackFile = false;
 	bool eraseCompressedFile = false;
+	bool inMemoryCompression = false;
 
 #if USE_DLL
 	const char* dllName = NULL;
@@ -222,7 +230,7 @@ int main(int argc, const char **argv)
 			if (!strnicmp(arg, "level=", 6))
 			{
 				if (!(level >= '0' && level <= '9')) goto usage;
-				level = arg[6];
+				level = arg[6] - '0';
 			}
 			else if (!strnicmp(arg, "exclude=", 8))
 			{
@@ -239,6 +247,10 @@ int main(int argc, const char **argv)
 			else if (!stricmp(arg, "delete"))
 			{
 				eraseCompressedFile = true;
+			}
+			else if (!stricmp(arg, "memory"))
+			{
+				inMemoryCompression = true;
 			}
 #if USE_DLL
 			else if (!strnicmp(arg, "dll=", 4))
@@ -291,31 +303,76 @@ int main(int argc, const char **argv)
 #endif // USE_DLL
 
 	clock_t clocks = 0;
+	clock_t unpackClocks = 0;
 
 	// open compressed stream
-	char initString[4] = "wb";
 	const char* compressedFile = "compressed-" STR(VERSION) "-" PLATFORM ".gz";
-	initString[2] = level;
-	gzFile gz = gzopen(compressedFile, initString);
+	gzFile gz = NULL;
+	if (!inMemoryCompression)
+	{
+		char initString[4] = "wb";
+		initString[2] = level + '0';
+		gz = gzopen(compressedFile, initString);
+	}
+
 	int iteration = 0;
 	int totalDataSize = 0;
+	int totalCompressedSize = 0;
+
 	// perform compression
 	while (FillBuffer() && iteration < MAX_ITERATIONS)
 	{
-		clock_t clock_a = clock();
-		gzwrite(gz, buffer, bytesInBuffer);
-		clocks += clock() - clock_a;
+		if (!inMemoryCompression)
+		{
+			clock_t clock_a = clock();
+			gzwrite(gz, buffer, bytesInBuffer);
+			clocks += clock() - clock_a;
+		}
+		else
+		{
+			clock_t clock_a = clock();
+			unsigned long compressedSize = sizeof(compressedBuffer);
+			int result;
+			result = compress2(compressedBuffer, &compressedSize, buffer, bytesInBuffer, level);
+			if (result != Z_OK)
+			{
+				printf("   Compress ERROR %d\n", result);
+				exit(1);
+			}
+			clocks += clock() - clock_a;
+			totalCompressedSize += compressedSize;
+
+			if (unpackFile)
+			{
+				clock_t clock_a = clock();
+				unsigned long unpackedSize = BUFFER_SIZE;
+				result = uncompress(buffer, &unpackedSize, compressedBuffer, compressedSize);
+				if (result != Z_OK)
+				{
+					printf("   Unpack ERROR %d\n", result);
+					exit(1);
+				}
+				unpackClocks += clock() - clock_a;
+			}
+		}
 		iteration++;
 		totalDataSize += bytesInBuffer;
 	}
+
 	// close compressed stream
-	gzclose(gz);
+	if (!inMemoryCompression)
+	{
+		gzclose(gz);
+	}
 
 	// determine size of compressed data
-	FILE* f = fopen(compressedFile, "rb");
-	fseek(f, 0, SEEK_END);
-	int compressedSize = ftell(f);
-	fclose(f);
+	if (!inMemoryCompression)
+	{
+		FILE* f = fopen(compressedFile, "rb");
+		fseek(f, 0, SEEK_END);
+		totalCompressedSize = ftell(f);
+		fclose(f);
+	}
 
 	// print results
 	const char* method = STR(VERSION);
@@ -333,12 +390,12 @@ int main(int argc, const char **argv)
 		printf("%6s:%c   Data: %.1f Mb   ", method, level, originalSizeMb);
 	}
 	printf("Time: %-5.1f s   Size: %d bytes   Speed: %5.2f Mb/s   Ratio: %.2f",
-		time, compressedSize, totalDataSize / double(1<<20) / time, (double)totalDataSize / compressedSize);
+		time, totalCompressedSize, totalDataSize / double(1<<20) / time, (double)totalDataSize / totalCompressedSize);
 
-	if (unpackFile)
+	if (unpackFile && !inMemoryCompression)
 	{
 		gz = gzopen(compressedFile, "rb");
-		clocks = clock();
+		clock_t clock_a = clock();
 
 		int result;
 		for (int unpSize = 0; unpSize < totalDataSize; /* nothing */)
@@ -356,8 +413,12 @@ int main(int argc, const char **argv)
 		result = gzclose(gz);
 		if (result != Z_OK) goto unpack_error;
 
-		clocks = clock() - clocks;
-		time = clocks / (float)CLOCKS_PER_SEC;
+		unpackClocks += clock() - clock_a;
+	}
+
+	if (unpackFile)
+	{
+		time = unpackClocks / (float)CLOCKS_PER_SEC;
 		printf("   Unpack: %5.2f Mb/s", totalDataSize / double(1<<20) / time);
 	}
 

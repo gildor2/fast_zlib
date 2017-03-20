@@ -7,7 +7,7 @@ noasm=0			# usa asm code
 noc=0			# use optimized C code
 nodll=0			# use dll with asm optimizations (original code)
 nong=0			# use zlib-ng
-extraargs="--delete --compact"
+extraargs="--delete --compact --memory"
 
 dllname=zlibwapi32.dll
 dllname_ng=zlib-ng_32.dll
