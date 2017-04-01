@@ -31,7 +31,6 @@
 
 ; Configuration (do not change unless for testing)
 
-;%define REFINE_MATCHES				; this option produces slightly different compression results - sometimes better, sometimes worse
 ;%define ALWAYS_ZERO_OFFSET			; DEBUG: work just like original algorithm, with zero offset; the performance will be nearly equal
 						; to original zlib with asm optimization
 
@@ -227,15 +226,6 @@ _longest_match:
 .cont:
 %endif
 		add_var best_len,[esi+DST.prev_length]
-%ifdef REFINE_MATCHES
-		add_var real_len,[esi+DST.prev_length]
-		xor	eax,eax
-		cmp	dword [best_len],MIN_MATCH
-		jbe	.threshold_ok
-		mov	eax,[esi+DST.prev_match]
-.threshold_ok:
-		add_var threshold_pos,eax
-%endif
 		add_var nice_match,[esi+DST.nice_match]
 		add_var str_start,[esi+DST.strstart]
 		add_var hash_shift,[esi+DST.hash_shift]
@@ -323,7 +313,7 @@ _longest_match:
 ;------------------------------------------------
 %ifndef ALWAYS_ZERO_OFFSET
 		cmp	dword [best_len],MIN_MATCH
-		jbe	.main_loop
+		jb	.main_loop
 		mov	[chain_mask],esi	; save value
 		mov	esi,[scan]
 		mov	edi,3			; index of last checked byte + start checking from pos+1 (pos+0->strstart->cur_match)
@@ -473,11 +463,7 @@ _longest_match:
 ;------------------------------------------------
 		xalign	4
 .break_match:
-%ifdef REFINE_MATCHES
-		mov	eax,[real_len]
-%else
 		mov	eax,[best_len]
-%endif
 		mov	esi,[deflate_state]
 
 .return:
@@ -571,25 +557,6 @@ _longest_match:
 		; EAX = len
 		cmp	eax,MAX_MATCH
 		jge	.max_str
-%ifdef REFINE_MATCHES
-		cmp	ebp,[threshold_pos]	; cur_match <= threshold_pos ?
-		ja	.above_threshold	; no
-		; this part may be executed only once per longest_match() call
-		mov	dword [threshold_pos],0
-		mov	esi,[deflate_state]	; best_len < s->prev_length+1 ?
-		mov	ebx,[esi+DST.prev_length]
-		inc	ebx
-		cmp	ebx,[best_len]
-		jbe	.above_threshold
-		mov	[best_len],ebx		; best_len = s->prev_length+1
-		mov	esi,[match_base]
-		lea	esi,[esi+ebx-3]  	; match_base2 = match_base + best_len - 3
-		mov	[match_base2],esi
-		mov	esi,[scan]
-		mov	ebx,[esi+ebx-3]		; scan_end = scan[best_len-3]
-		mov	[scan_end],ebx
-.above_threshold:
-%endif
 		cmp	eax,[best_len]
 		jg	.match_is_longer
 
@@ -623,9 +590,6 @@ _longest_match:
 		jge	.return
 		; best_len = len
 		mov	[best_len],eax
-%ifdef REFINE_MATCHES
-		mov	[real_len],eax
-%endif
 		; update scan_end
 		mov	ebx,[ecx-3]
 		mov	[scan_end],ebx

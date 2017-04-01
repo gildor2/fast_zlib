@@ -7,7 +7,6 @@
  */
 
 //#define PARANOID_CHECK                        /* enable to immediately validate results */
-//#define REFINE_MATCHES                        /* improves compression for data which is compressed well */
 
 #ifdef PARANOID_CHECK
 
@@ -42,7 +41,6 @@ local uInt longest_match(s, cur_match)
      */
     Bytef *match_base = s->window;              /* s->window - offset */
     Bytef *match_base2;                         /* s->window + best_len-1 - offset */
-    IPos threshold_pos = best_len > MIN_MATCH ? s->prev_match : 0;
     /* "offset search" mode will speedup only with large chain_length; plus it is
      * impossible for deflate_fast(), because this function does not perform
      * INSERT_STRING() for matched strings (hash table have "holes"). deflate_fast()'s
@@ -62,6 +60,10 @@ local uInt longest_match(s, cur_match)
     typedef ulg FAR ulgf;                       /*?? should be declared in zutil.h */
     ulg scan_start_l = *(ulgf*)scan;            /* 1st 4 bytes of scan */
     register ush scan_end;                      /* last byte of scan + next one */
+
+#if (MIN_MATCH != 3) || (MAX_MATCH != 258)
+#error The code is designed for MIN_MATCH==3 && MAX_MATCH==258
+#endif
 
 #define UPDATE_MATCH_BASE2  match_base2 = match_base+best_len-1
 #define UPDATE_SCAN_END     scan_end = *(ushf*)(scan+best_len-1)
@@ -84,16 +86,13 @@ local uInt longest_match(s, cur_match)
     if ((uInt)nice_match > s->lookahead) nice_match = s->lookahead;
     Assert((ulg)s->strstart <= s->window_size-MIN_LOOKAHEAD, "need lookahead");
 
-    if (best_len > MIN_MATCH) {
+    if (best_len >= MIN_MATCH) {
         /* We're continuing search (lazy evaluation).
          * Note: for deflate_fast best_len is always MIN_MATCH-1 here
          */
         register int i;
         IPos pos;
         register uInt hash = 0;
-#if (MIN_MATCH != 3) || (MAX_MATCH != 258)
-#error The code is designed for MIN_MATCH==3 && MAX_MATCH==258
-#endif
         /* Find a most distant chain starting from scan with index=1 (index=0 corresponds
          * to cur_match). Note: we cannot use s->prev[strstart+1,...] immediately, because
          * these strings are not yet inserted into hash table yet.
@@ -171,21 +170,6 @@ local uInt longest_match(s, cur_match)
 
         len = (MAX_MATCH - 1) - (int)(strend-scan);
         scan = strend - (MAX_MATCH-1);
-
-#ifdef REFINE_MATCHES
-        /* Reject matches, smaller than prev_length+2 for matches, older
-         * than threshold_pos (slightly improves compression ratio).
-         */
-        if (cur_match <= threshold_pos) {
-            /* current match is more distant than prev_match */
-            threshold_pos = 0;  /* disable condition above */
-            if (best_len < s->prev_length + 1) {
-                best_len = s->prev_length + 1;
-                UPDATE_MATCH_BASE2;
-                UPDATE_SCAN_END;
-            }
-        }
-#endif /* REFINE_MATCHES */
 
         if (len > best_len) {
 #ifdef PARANOID_CHECK
