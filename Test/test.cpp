@@ -229,7 +229,7 @@ int main(int argc, const char **argv)
 			arg += 2; // skip "--"
 			if (!strnicmp(arg, "level=", 6))
 			{
-				if (!(level >= '0' && level <= '9')) goto usage;
+				if (!(level < '0' || level > '9')) goto usage;
 				level = arg[6] - '0';
 			}
 			else if (!strnicmp(arg, "exclude=", 8))
@@ -383,11 +383,11 @@ int main(int argc, const char **argv)
 	float originalSizeMb = totalDataSize / double(1<<20);
 	if (!compactOutput)
 	{
-		printf("Compressed %.1f Mb of data by method %s with level %c (%s)\n", originalSizeMb, method, level, dirName);
+		printf("Compressed %.1f Mb of data by method %s with level %d (%s)\n", originalSizeMb, method, level, dirName);
 	}
 	else
 	{
-		printf("%6s:%c   Data: %.1f Mb   ", method, level, originalSizeMb);
+		printf("%6s:%d   Data: %.1f Mb   ", method, level, originalSizeMb);
 	}
 	printf("Time: %-5.1f s   Size: %d bytes   Speed: %5.2f Mb/s   Ratio: %.2f",
 		time, totalCompressedSize, totalDataSize / double(1<<20) / time, (double)totalDataSize / totalCompressedSize);
