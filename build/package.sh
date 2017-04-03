@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Extract version from zlib.h using grep and bash regexp
+ver=`grep ../zlib/zlib.h -e "#define ZLIB_VERSION"`
+[[ "$ver" =~ "\"(.*)\"" ]] && version=${BASH_REMATCH[1]}
+
 tmpdir="tmp"
 mkdir -p $tmpdir
 
@@ -20,7 +24,7 @@ cd binaries
 cd ..
 
 cat > $tmpdir/readme.txt <<EOF
-This archive contains prebuilt zlib library of version 1.2.11 compiled with optimized version of deflate.
+This archive contains prebuilt zlib library of version $version compiled with optimized version of deflate.
 For more details please visit https://github.com/gildor2/fast_zlib
 
 Directory names combined from <platform>-<calling convention>. Platform is either win32 or win64, calling

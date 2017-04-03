@@ -57,7 +57,7 @@ IMPLIB  = $DLLDIR/zlib1
 
 sources(DLL) = {
 	$COMMON_FILES
-	./zlib.rc			# for some unknown reason, RC.exe thrown an error "bad usage" if zlib.rc name provided without path
+	zlib.rc
 }
 
 target(shared, $DLLDIR/zlib1.dll, DLL)
@@ -87,7 +87,7 @@ sources(DLL) = {
 	$ZLIB/contrib/minizip/unzip.c
 	$ZLIB/contrib/minizip/mztools.c
 	$ZLIB/contrib/minizip/zip.c
-	./zlib.rc			# for some unknown reason, RC.exe thrown an error "bad usage" if zlib.rc name provided without path
+	zlib.rc
 }
 
 target(shared, $DLLDIR/zlibwapi.dll, DLL)
@@ -102,5 +102,5 @@ target(static, $DLLDIR/zlibstat.lib, STATIC)
 
 #--------------------------------------------------
 !else
-!error Unknown calling convension: "$CONV"
+!error Unknown calling convention: "$CONV"
 !endif
