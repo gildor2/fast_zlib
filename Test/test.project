@@ -23,7 +23,7 @@ EXEDIR = $R/obj/bin
 
 !if "$COMPILER" eq "GnuC"
 	# linux/cygwin + GCC
-	STDLIBS   = stdc++ m GL 							# libm for math.h functions
+	STDLIBS   = stdc++
 	!if "$PLATFORM" ne "cygwin"
 		STDLIBS += dl	# dlopen() and friends
 	!endif

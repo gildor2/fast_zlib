@@ -402,16 +402,17 @@ int main(int argc, const char **argv)
 		{
 			result = gzread(gz, buffer, BUFFER_SIZE);
 			if (result < 0)
-			{
-			unpack_error:
-				printf("   Unpack ERROR %d\n", result);
-				exit(1);
-			}
+				goto unpack_error;
 			unpSize += result;
 		}
 
 		result = gzclose(gz);
-		if (result != Z_OK) goto unpack_error;
+		if (result != Z_OK)
+		{
+		unpack_error:
+			printf("   Unpack ERROR %d\n", result);
+			exit(1);
+		}
 
 		unpackClocks += clock() - clock_a;
 	}
