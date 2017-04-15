@@ -28,8 +28,7 @@ local uInt longest_match(s, cur_match)
     register Bytef *scan = s->window + s->strstart; /* current string */
     register Bytef *match;                      /* matched string */
     register int len;                           /* length of current match */
-    int best_len = s->prev_length;              /* ignore strings, shorter or of the same length; rename ?? */
-    int real_len = best_len;                    /* length of longest found match */
+    int best_len = s->prev_length;              /* ignore strings, shorter or of the same length */
     int nice_match = s->nice_match;             /* stop if match long enough */
     int offset = 0;                             /* offset of current hash chain */
     IPos limit_base = s->strstart > (IPos)MAX_DIST(s) ?
@@ -57,8 +56,7 @@ local uInt longest_match(s, cur_match)
     register Bytef *strend = s->window + s->strstart + MAX_MATCH-1;
         /* points to last byte for maximal-length scan */
     register ush scan_start = *(ushf*)scan;     /* 1st 2 bytes of scan */
-    typedef ulg FAR ulgf;                       /*?? should be declared in zutil.h */
-    ulg scan_start_l = *(ulgf*)scan;            /* 1st 4 bytes of scan */
+    uInt scan_start32 = *(uIntf*)scan;          /* 1st 4 bytes of scan */
     register ush scan_end;                      /* last byte of scan + next one */
 
 #if (MIN_MATCH != 3) || (MAX_MATCH != 258)
@@ -140,13 +138,13 @@ local uInt longest_match(s, cur_match)
             /* current len > MIN_MATCH (>= 4 bytes); compare 1st 4 bytes and last 2 bytes */
             for (;;) {
                 if (*(ushf*)(match_base2 + cur_match) == scan_end &&
-                    *(ulgf*)(match_base + cur_match) == scan_start_l) break;
+                    *(uIntf*)(match_base + cur_match) == scan_start32) break;
                 NEXT_CHAIN;
             }
         } else {
             /* current len is exactly MIN_MATCH (3 bytes); compare 4 bytes */
             for (;;) {
-                if (*(ulgf*)(match_base + cur_match) == scan_start_l) break;
+                if (*(uIntf*)(match_base + cur_match) == scan_start32) break;
                 NEXT_CHAIN;
             }
         }
@@ -177,7 +175,7 @@ local uInt longest_match(s, cur_match)
 #endif
             /* new string is longer than previous - remember it */
             s->match_start = cur_match - offset;
-            real_len = best_len = len;
+            best_len = len;
             if (len >= nice_match) break;
             UPDATE_SCAN_END;
             /* look for better string offset */
@@ -251,18 +249,18 @@ break_matching: /* sorry for goto's, but such code is smaller and easier to view
             warned = 1;
             printf("WARNING: compiled with PARANOID_CHECK\n");
         }
-        if (real_len > s->lookahead) real_len = s->lookahead;
-        if (real_len > MAX_MATCH) {
+        if (best_len > s->lookahead) best_len = s->lookahead;
+        if (best_len > MAX_MATCH) {
             error = 1;
             printf("match too long\n");
         }
         if (s->match_start < limit_base) {
             error = 1;
-            printf("too far $%X -> $%X [%d]  (dist+=%X)\n", s->strstart, s->match_start, real_len, limit_base-s->match_start);
+            printf("too far $%X -> $%X [%d]  (dist+=%X)\n", s->strstart, s->match_start, best_len, limit_base-s->match_start);
         }
-        if (zmemcmp(s->window + s->strstart, s->window + s->match_start, real_len)) {
+        if (zmemcmp(s->window + s->strstart, s->window + s->match_start, best_len)) {
             error = 1;
-            printf("invalid match $%X -- $%X [%d]\n", s->strstart, s->match_start, real_len);
+            printf("invalid match $%X -- $%X [%d]\n", s->strstart, s->match_start, best_len);
         }
         if (error) {
             FILE *f = fopen("match.dmp", "wb");
@@ -276,6 +274,6 @@ break_matching: /* sorry for goto's, but such code is smaller and easier to view
         }
     }
 #endif /* PARANOID_CHECK */
-    if ((uInt)real_len <= s->lookahead) return (uInt)real_len;
+    if ((uInt)best_len <= s->lookahead) return (uInt)best_len;
     return s->lookahead;
 }
