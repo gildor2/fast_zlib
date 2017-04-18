@@ -39,6 +39,7 @@ DEFLATE_FILES = zlib/deflate.c
 
 # files shared between all builds for the same platform
 OBJDIR = $R/obj/$PRJ-$PLATFORM
+DEFINES += UNALIGNED_OK
 
 sources(COMMON_FILES) = {
 	$ZLIB/adler32.c
