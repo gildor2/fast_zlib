@@ -65,6 +65,7 @@ global:
 	CPP_EXCEPT	= 1 == undef | 0		0 = disable C++ exceptions
 	MAPFILES	= 1 | 0 == undef
 	PDB			= 1 | 2 | 0 == undef	1 = link-level, 2 = compile-level, 0 = off (VisualC only)
+	WINXP       = 1 | 0 == undef		explicitly support Windows XP platform
 	STDLIBS		= list of used libraries (for "GNU Make" will append "lib" and will search in paths)
 	LIBRARIES   = path(s) to additional library files
 	LIBC		= static | shared == undef
@@ -84,10 +85,11 @@ at a time of registration of source files
 	DEFINES		= define1[=1] [define2 define3 ...]
 	INCLUDES	= path1 [path2 path3 ...]
 	OBJDIR		= directory for obj files (if not specified, obj files will be placed near c/cpp files)
-	WARNLEVEL	= num					compiler warning level (0 - disable; 1 - max; 2+ - less)
+	WARNLEVEL	= num					compiler warning level (0 - disable; 1 - min; 2 - more, max for VC=4, for gcc=2)
 	OPTIMIZE	= size | speed | none
 	INLINES		= no | explicit | all	expanding inlines: disabled | explicit only | any suitable
 	OPTIONS		= string				compiler-dependent: extra options for command line
+	CPP_OPTIONS	= string				same as OPTIONS, but applied only to C++ compiler
 
 4. Commands:
 	sources(NAME) = source files		add source files to list <NAME> with flags DEFINES,INCLUDES,OBJDIR;
@@ -300,23 +302,27 @@ sub getline1 {
 			#-------- conditional directives ------------
 			if ($cmd =~ /^if\w*/) {
 				my ($type) = $cmd =~ /^if(\w+)$/;
-				my $cond = CheckCondition ($type, $args, $cmd);
 				$nestedIf++;						# count of nested if's
-				if ($enabled != 1) {
+				if ($enabled == 1) {
+					my $cond = CheckCondition($type, $args, $cmd);
+					if ($cond == 0) {
+						$enabled = 0;
+					}
+				} else {
 					$nestedIf0++;					# count of disabled if's
-				} elsif ($cond == 0) {
-					$enabled = 0;
 				}
 			} elsif ($cmd =~ /^elif\w*/) {
 				Error ("$cmd without if") if $nestedIf == 0;
 				my ($type) = $cmd =~ /^elif(\w+)$/;
-				my $cond = CheckCondition ($type, $args, $cmd);
 
 				if ($nestedIf0 == 0) {
 					if ($enabled == 1) {
 						$enabled = 2;				# enabled -> wait endif
-					} elsif ($enabled == 0 && $cond != 0) {
-						$enabled = 1;				# disabled -> enabled when cond<>0
+					} elsif ($enabled == 0) {
+						my $cond = CheckCondition($type, $args, $cmd);
+						if ($cond != 0) {
+							$enabled = 1;			# disabled -> enabled when cond<>0
+						}
 					}
 				}
 			} elsif ($cmd eq "else") {
@@ -532,11 +538,28 @@ sub InitCompiler {
 sub EmitCompilerDefs {
 	Splitter ("Compiler definitions");
 	if ($COMPILER eq "VisualC") {
-		print "CPP  = cl.exe -nologo -c -D WIN32 -D _WINDOWS\n";
-		my $machine = "X86";
-		$machine = "X64" if $PLATFORM eq "win64";
+		# Windows XP support
+		my $winxp = "";
+		if (GetSrcOption("WINXP", 0) > 0) {
+			# Microsoft: https://blogs.msdn.microsoft.com/vcblog/2012/10/08/windows-xp-targeting-with-c-in-visual-studio-2012/
+			# Also: https://tedwvc.wordpress.com/2014/01/01/how-to-target-xp-with-vc2012-or-vc2013-and-continue-to-use-the-windows-8-x-sdk/
+			$winxp = " -D _USING_V110_SDK71_";
+		}
+		# Compiler
+		print "CPP  = cl.exe -nologo -c -D WIN32 -D _WINDOWS${winxp}\n";
+		# Linker
+		my $machine = ($PLATFORM eq "win64") ? "X64" : "X86";
 		print "LINK = link.exe -nologo -filealign:512 -incremental:no -machine:$machine\n";
+		# Library manager
 		print "AR   = link.exe -lib -nologo\n";		# cannot use "LIB" name
+		# Resource compiler
+		my $defs;
+		if ($PLATFORM eq "win32") {
+			$defs .= " -d _WIN32 -d WIN32";
+		} else {
+			$defs .= " -d _WIN64 -d WIN64";
+		}
+		print "RC   = rc.exe -dNDEBUG -l 0x409${winxp}${defs}\n"
 	} elsif ($COMPILER eq "GnuC") {
 		my $platf = "gcc";
 		# platform override
@@ -548,9 +571,9 @@ sub EmitCompilerDefs {
 		} elsif ($PLATFORM eq "unix64") {
 			$platf .= " -m64";
 		}
-		print "CPP  = $platf -pipe -c\n";
-		print "LINK = $platf -pipe -s\n";
-		print "AR   = ar -rcs\n";					# r=(replace files), c=(create archive), s=(write object file index)
+		print "CPP  = \@$platf -pipe -c\n";
+		print "LINK = \@$platf -pipe -s\n";
+		print "AR   = \@ar -rcs\n";					# r=(replace files), c=(create archive), s=(write object file index)
 	}
 	print "\n";
 }
@@ -607,6 +630,8 @@ sub AddObjectList {
 		# get options
 		my $options = GetSrcOption ("OPTIONS");
 		$options = " $options" if $options ne "";
+		my $cpp_options = GetSrcOption("CPP_OPTIONS");
+		$cpp_options = " $cpp_options" if $cpp_options ne "";
 		if ($COMPILER eq "VisualC") {
 			my $opt = GetSrcOption ("WARNLEVEL");
 			# warning level
@@ -634,13 +659,17 @@ sub AddObjectList {
 				WarningOnce ("unknown INLINES option: [$opt]");
 			}
 			# C++ exceptions
-			$opt = GetSrcOption ("CPP_EXCEPT");
-			if ($opt eq "1" || $opt eq "") {
-				$options .= " -EHsc";	# old compilers: "-GX"
-			} elsif ($opt eq "0") {
-				$options .= " -EHs-";	# old compilers: "-GX-"
-			} else {
-				WarningOnce ("unknown CPP_EXCEPT option: [$opt]");
+			if ($src =~ /\.cpp$/) {
+				$opt = GetSrcOption ("CPP_EXCEPT");
+				if ($opt eq "1" || $opt eq "") {
+					$options .= " -EHsc";	# old compilers: "-GX"
+				} elsif ($opt eq "0") {
+					$options .= " -EHs-";	# old compilers: "-GX-"
+				} else {
+					WarningOnce ("unknown CPP_EXCEPT option: [$opt]");
+				}
+				# append common C++ options
+				$options .= $cpp_options;
 			}
 			# debugging
 			$opt = GetSrcOption("PDB", 0);
@@ -656,9 +685,9 @@ sub AddObjectList {
 				if ($opt eq "0") {
 					$options .= " -w";					# disable warnings
 				} elsif ($opt eq "1") {
-					$options .= " -Wall -Wextra";		# max warning level
+					$options .= " -Wall";				# "all" but not "extra" ...
 				} else { #if ($opt eq "2")
-					$options .= " -Wall";				# all & !extra ...
+					$options .= " -Wall -Wextra";		# max warning level
 				}
 			}
 			# optimization strategy
@@ -682,7 +711,7 @@ sub AddObjectList {
 				Warning ("unknown INLINES option: [$opt]");
 			}
 			# C++ exceptions
-			if ($src !~ /\.c$/) {
+			if ($src =~ /\.cpp$/) {
 				$opt = GetSrcOption ("CPP_EXCEPT");
 				if ($opt eq "1" || $opt eq "") {
 					# use compiler defaults
@@ -691,6 +720,8 @@ sub AddObjectList {
 				} else {
 					WarningOnce ("unknown CPP_EXCEPT option: [$opt]");
 				}
+				# append common C++ options
+				$options .= $cpp_options;
 			}
 		} else {
 			die "unknown compiler";
@@ -851,13 +882,6 @@ sub CollectFileDependencies {
 	my ($path) = $file =~ /^(\S+)\/[\w+\-\.]+$/;
 	$path = "" if !defined($path);
 
-# -- disabled 08.10.2014: process .rc file like it's ordinary C++ file; perhaps later should allow
-# -- "relaxed" includes, if we'll have any problems: should completely ignore includes which genmake can't find
-#	if ($srcType eq "rc") {
-#		$depends{$file} = "";					# do not parse resources and avoid processing later
-#		return 1;
-#	}
-
 	local *DEP;									# NOTE: "local", not "my"
 	open (DEP, $file) || Error ("cannot open file \"$file\"");	# headers should be already checked, but .c/.cpp - may absent
 	while (my $line = <DEP>) {
@@ -987,9 +1011,9 @@ $optionVar   = "";		# current options variable
 # will generate makefile lines to compile single object file
 sub FlushObjectFile {
 	my ($srcFile, $objDir, $defines, $includes, $options, $objListName) = @_;
-	my $objFile = GetObjFilename ($srcFile, $objDir);
+	my $objFile = GetObjFilename($srcFile, $objDir);
 	my ($srcType) = $srcFile =~ /\S+\.(\w+)/;
-	my ($srcDir)  = $srcFile =~ /(\S+\/)[\w\.]+/;
+	my ($srcDir, $srcCleanName) = $srcFile =~ /(\S+\/)?([^\/]+)$/;
 
 	# linker-only files - GetObjFilename() returns $srcFile
 	if ($srcFile eq $objFile) {
@@ -1052,13 +1076,8 @@ sub FlushObjectFile {
 			my $defs = "";
 			$inc = " ".GenerateOptions ($includes, "-i ") if $includes ne "";
 			$defs = " ".GenerateOptions ($defines, "-d ") if $defines ne "";
-			if ($PLATFORM eq "win32") {
-				$defs .= " -d _WIN32 -d WIN32";
-			} else {
-				$defs .= " -d _WIN64 -d WIN64";
-			}
 			$srcDir = "." if $srcDir eq "";		# empty $srcDir means current directory
-			$line = "rc.exe -l 0x409 -i ${srcDir}${inc}${defs} -fo\"$objFile\" -dNDEBUG";
+			$line = "\$(RC) -i ${srcDir}${inc}${defs} -fo\"$objFile\"";
 		} else {
 			# C/C++ file
 			my $crt = GetSrcOption ("LIBC");
@@ -1076,17 +1095,19 @@ sub FlushObjectFile {
 		}
 		$line .= " $srcFile";
 	} elsif ($COMPILER eq "GnuC") {	#!! GnuC - other
+		# We're suppressing command line echo with '@', so echo file name ourselves
+		$line .= "\@echo $srcCleanName\n\t";
 		if ($srcType eq "asm") {
 			my $tgt = "elf32";
 			$tgt = "elf64" if $PLATFORM eq "unix64";
 			$tgt = "coff" if $PLATFORM eq "win32";
-			$line = "nasm -f $tgt ".GenerateOptions($includes, "-I")." -o \"$objFile\"";
+			$line .= "nasm -f $tgt ".GenerateOptions($includes, "-I")." -o \"$objFile\"";
 		} elsif ($srcType eq "rc") {
 			$line .= "windres -O coff -I $srcDir -o $objFile";
 		} else {					#!! GnuC - compiler
 			# C/C++ file
 			#?? GnuC/Linux: static/shared LIBC
-			$line = "\$(CPP)";
+			$line .= "\$(CPP)";
 			$line .= " \$($optionVar)" if $options ne "";
 			$line .= " -o $objFile";
 		}
@@ -1222,10 +1243,17 @@ sub FlushTargetText {
 	}
 	$prefix .= "\n";
 
+	if ($target eq "executable") {
+		$prefix .= "\t\@echo Linking $n\n";
+	} elsif ($target eq "shared") {
+		$prefix .= "\t\@echo Linking dynamic library $n\n";
+	} elsif ($target eq "static") {
+		$prefix .= "\t\@echo Creating static library $n\n";
+	}
+
 	# NOTE: this logic may be implemented with our preprocessor (exec some script for each target)
 	#-------------- Visual C++ options --------------------
 	if ($COMPILER eq "VisualC") {
-		$prefix .= "\techo Creating $target \"$n\" ...\n";
 		if ($target eq "static") {
 			return $prefix."\t\$(AR) -out:\"$n\"$fileList";
 		}
@@ -1244,6 +1272,11 @@ sub FlushTargetText {
 		} else {
 			$line .= " -subsystem:windows";
 		}
+		if (GetSrcOption("WINXP", 0) > 0) {
+			# https://blogs.msdn.microsoft.com/vcblog/2012/10/08/windows-xp-targeting-with-c-in-visual-studio-2012/
+			# append OS version to "subsystem" option
+			$line .= ($PLATFORM eq "win64") ? ",5.02" : ",5.01";
+		}
 		if ($target eq "executable") {
 			return $prefix.$line;
 		} elsif ($target eq "shared") {
@@ -1257,7 +1290,7 @@ sub FlushTargetText {
 			} else {
 				# if IMPLIB is not specified, delete unneeded linker output
 				$line .= " -implib:\"delete.lib\"";
-				$line .= "\n\t# deleting unneeded files\n\tdel delete.lib\n\tdel delete.exp";
+				$line .= "\n\tdel delete.lib\n\tdel delete.exp";
 			}
 			return $prefix.$line;
 		} else {
@@ -1265,7 +1298,6 @@ sub FlushTargetText {
 		}
 	#--------------- Gnu C Compiler -----------------------
 	} elsif ($COMPILER eq "GnuC") {		#!! GnuC - linker
-		$prefix .= "\t\@echo Creating $target \"$n\" ...\n";
 		$line = "\t\$(LINK) -o $n";
 		$line .= $fileList;
 		my $linkflags = GetTargetOption ($n, "LINKFLAGS");
