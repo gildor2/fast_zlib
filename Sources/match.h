@@ -1,8 +1,8 @@
 /*
  * Fast version of the longest_match function for zlib.
- * Copyright (C) 2004-2017 Konstantin Nosov
+ * Copyright (C) 2004-2019 Konstantin Nosov
  * For details and updates please visit
- * http://github.com/gildor2/fast_zlib
+ * https://github.com/gildor2/fast_zlib
  * Licensed under the BSD license. See LICENSE.txt file in the project root for full license information.
  */
 
@@ -18,7 +18,7 @@
 #endif /* PARANOID_CHECK */
 
 /* Please retain this line */
-const char fast_lm_copyright[] = " Fast match finder for zlib, http://www.gildor.org/en/projects/zlib ";
+const char fast_lm_copyright[] = " Fast match finder for zlib, https://github.com/gildor2/fast_zlib ";
 
 local uInt longest_match(s, cur_match)
     deflate_state *s;

@@ -1,6 +1,6 @@
 ;------------------------------------------------------------------------------
 ; Fast version of the longest_match function for zlib
-; Copyright (C) 2004-2017 Konstantin Nosov
+; Copyright (C) 2004-2019 Konstantin Nosov
 ; For details and updates please visit
 ; http://github.com/gildor2/fast_zlib
 ; Licensed under the BSD license. See LICENSE.txt file in the project root for
@@ -716,7 +716,7 @@ _longest_match:
 ;------------------------------------------------------------------------------
 
 		; Please do not remove this string!
-		db 13,10,' Fast match finder for zlib, http://www.gildor.org/en/projects/zlib ',13,10,0
+		db 13,10,' Fast match finder for zlib, https://github.com/gildor2/fast_zlib ',13,10,0
 
 ;------------------------------------------------------------------------------
 
