@@ -3,7 +3,7 @@
 platform=win32
 
 noorig=0		# use original C code
-noasm=0			# usa asm code
+noasm=0			# use asm code
 noc=0			# use optimized C code
 nodll=0			# use dll with asm optimizations (original code)
 nong=0			# use zlib-ng
@@ -48,6 +48,12 @@ for arg in "$@"; do		# using quoted $@ will allow to correctly separate argument
 		noorig=1
 		nong=1
 		;;
+	--orig)
+		noc=1
+		nodll=1
+		noasm=1
+		nong=1
+		;;
 	--ng)
 		noc=1
 		noasm=1
@@ -73,6 +79,7 @@ Options:
   --no[asm|c|orig|dll|ng]  disable particular target
   --c                      test only C implementation
   --asm                    test only Asm implementation
+  --orig                   test only original implementation
   --ng                     test only zlib-ng
   --win64                  test for 64-bit Windows
   --level=X                select compression level
@@ -94,7 +101,7 @@ if ! ./build.sh $target > /dev/null 2>&1; then
 	exit 1
 fi
 
-echo "Testing for $platform"
+echo "Testing $platform ($extraargs)"
 
 function DoTests
 {
@@ -131,7 +138,7 @@ if [ "$dir" ]; then
 	DoTests "$dir"
 else
 	DoTests C:/Projects/Epic/UnrealEngine4-latest/Engine/Source --exclude=ThirdParty
-	DoTests C:/3-UnrealEngine/4.14/Engine/Binaries/Win64
+	DoTests C:/3-UnrealEngine/UE_4.18/Engine/Binaries/Win64
 	DoTests C:/1
 #	DoTests C:/Data/Images
 #	DoTests C:/Downloads/torrent/Trollhunters
