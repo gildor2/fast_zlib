@@ -16,9 +16,7 @@ DLLDIR = $R/build/binaries/$PLATFORM-$CONV
 !if "$COMPILER" eq "VisualC"
 #	CPP_EXCEPT = 0
 	OPTIONS = -GS- -GR- 								#?? VC8+
-	DEFINES += _USING_V110_SDK71_						# avoid some warnings, perhaps affects something else
-					# see http://tedwvc.wordpress.com/2014/01/01/how-to-target-xp-with-vc2012-or-vc2013-and-continue-to-use-the-windows-8-x-sdk/
-					# it looks like VS2013 requires _USING_V120_SDK71_
+	WINXP = 1
 	!if "$OLDCRT" eq "1"
 		DEFINES += OLDCRT vsnprintf=_vsnprintf	# define vsnprintf to use underscore version of the function because non-underscore is unavailable in msvcrt
 		WDKCRT = $R/../Libs/msvcrt
