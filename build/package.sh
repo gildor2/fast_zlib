@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [ ! -d "binaries" ]; then
+	echo "Please start \"buildall.sh\" before packaging."
+	exit 1
+fi
+
 # Extract version from zlib.h using grep and bash regexp
 ver=`grep ../zlib/zlib.h -e "#define ZLIB_VERSION"`
 [[ "$ver" =~ "\"(.*)\"" ]] && version=${BASH_REMATCH[1]}
@@ -43,3 +48,5 @@ Konstantin Nosov
 https://github.com/gildor2/fast_zlib
 http://www.gildor.org
 EOF
+
+echo "Now \"tmp\" directory contains data for zipping."

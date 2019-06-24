@@ -9,7 +9,7 @@ if [ -z "$PLATFORM" ]; then
 	[ "$OSTYPE" == "linux-gnu" ] || [ "$OSTYPE" == "linux" ] && PLATFORM="linux"
 fi
 
-export vc_ver=10
+export vc_ver=latest
 
 # Build <platform> <type>
 function Build()
