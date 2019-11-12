@@ -18,6 +18,10 @@ if [ "$OSTYPE" == "linux-gnu" ] || [ "$OSTYPE" == "linux" ]; then
 	nong=1
 fi
 
+if [ "$HOSTTYPE" != "x86_64" ] && [ "$HOSTTYPE" != "i386" ]; then
+    noasm=1
+fi
+
 for arg in "$@"; do		# using quoted $@ will allow to correctly separate arguments like [ --path="some string with spaces" -debug ]
 #	echo "ARG=$arg"
 	case $arg in

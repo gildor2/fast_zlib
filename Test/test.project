@@ -29,9 +29,12 @@ EXEDIR = $R/obj/bin
 	!endif
 
 	LIBC      = shared
-	OPTIONS   = -msse2									# enable SSE instructions
-	OPTIONS   += -fno-strict-aliasing					# required for our uint_cast()-based FP hacks
+
+	OPTIONS   = -fno-strict-aliasing					# required for our uint_cast()-based FP hacks
 	OPTIONS   += -fno-stack-protector					# this will remove GLIBC_2.4 dependency
+	!if "$ARCH" eq "x86_64"
+		OPTIONS   += -msse2								# enable SSE instructions
+	!endif
 !endif
 
 TEST_FILES    = Test/test.cpp
