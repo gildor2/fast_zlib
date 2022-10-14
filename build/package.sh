@@ -46,7 +46,7 @@ contains minizip library. To use winapi DLL you should add define ZLIB_WINAPI be
 
 Konstantin Nosov
 https://github.com/gildor2/fast_zlib
-http://www.gildor.org
+https://www.gildor.org/
 EOF
 
 echo "Now \"tmp\" directory contains data for zipping."

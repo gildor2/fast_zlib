@@ -1,0 +1,45 @@
+diff -Nrw -U5 original/deflate.c patched/deflate.c
+--- original/deflate.c	2022-10-13 08:06:55 +0300
++++ patched/deflate.c	2022-10-14 11:25:54 +0300
+@@ -85,11 +85,15 @@
+ local block_state deflate_huff   OF((deflate_state *s, int flush));
+ local void lm_init        OF((deflate_state *s));
+ local void putShortMSB    OF((deflate_state *s, uInt b));
+ local void flush_pending  OF((z_streamp strm));
+ local unsigned read_buf   OF((z_streamp strm, Bytef *buf, unsigned size));
++#ifndef ASMV
+ local uInt longest_match  OF((deflate_state *s, IPos cur_match));
++#else
++uInt longest_match  OF((deflate_state *s, IPos cur_match));
++#endif
+ 
+ #ifdef ZLIB_DEBUG
+ local  void check_match OF((deflate_state *s, IPos start, IPos match,
+                             int length));
+ #endif
+@@ -1263,10 +1267,12 @@
+     s->match_length = s->prev_length = MIN_MATCH-1;
+     s->match_available = 0;
+     s->ins_h = 0;
+ }
+ 
++#ifndef ASMV
++
+ #ifndef FASTEST
+ /* ===========================================================================
+  * Set match_start to the longest match starting at the given string and
+  * return its length. Matches shorter or equal to prev_length are discarded,
+  * in which case the result is equal to prev_length and match_start is
+@@ -1480,10 +1486,12 @@
+     return (uInt)len <= s->lookahead ? (uInt)len : s->lookahead;
+ }
+ 
+ #endif /* FASTEST */
+ 
++#endif
++
+ #ifdef ZLIB_DEBUG
+ 
+ #define EQUAL 0
+ /* result of memcmp for equal strings */
+ 

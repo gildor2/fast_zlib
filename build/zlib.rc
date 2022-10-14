@@ -36,7 +36,7 @@ BEGIN
       VALUE "ProductName",	"zlib\0"
       VALUE "ProductVersion",	ZLIB_VERSION "\0"
       VALUE "Comments","Fast deflate version by Konstantin Nosov, www.gildor.org\0"
-      VALUE "LegalCopyright", "(C) 1995-2017 Jean-loup Gailly & Mark Adler\0"
+      VALUE "LegalCopyright", "(C) 1995-2022 Jean-loup Gailly & Mark Adler\0"
     END
   END
   BLOCK "VarFileInfo"

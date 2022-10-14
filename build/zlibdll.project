@@ -4,7 +4,7 @@ LIBC       = shared
 CONSOLE    = 1
 OPTIMIZE   = speed
 PDB        = 2
-OLDCRT     = 1
+OLDCRT     = 0
 
 R = ..						# root directory of the project
 ZLIB = $R/zlib
@@ -21,6 +21,8 @@ DLLDIR = $R/build/binaries/$PLATFORM-$CONV
 		DEFINES += OLDCRT vsnprintf=_vsnprintf	# define vsnprintf to use underscore version of the function because non-underscore is unavailable in msvcrt
 		WDKCRT = $R/../Libs/msvcrt
 		!include $WDKCRT/msvcrt.project
+	!else
+		LIBC = static
 	!endif
 !endif
 

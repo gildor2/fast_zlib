@@ -39,6 +39,12 @@ is to making a file with contents looking like
 
 and linking zlib with this file instead of deflate.c.
 
+#### Zlib 1.2.13 or newer
+
+Note: since zlib 1.2.13 (October 2022), ASMV option has been removed from zlib source, therefore there's no possibility to replace longest_match
+function without patching the original source code. So, you'll need to apply patch to the zlib source code in order to make things buildable. You
+may find the patch in Sources/zlib_1.2.13.patch.
+
 
 ### Building a 32-bit assembly version
 

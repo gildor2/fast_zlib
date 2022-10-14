@@ -20,7 +20,7 @@
 /* Please retain this line */
 const char fast_lm_copyright[] = " Fast match finder for zlib, https://github.com/gildor2/fast_zlib ";
 
-local uInt longest_match(s, cur_match)
+uInt longest_match(s, cur_match)
     deflate_state *s;
     IPos cur_match;                             /* current match */
 {

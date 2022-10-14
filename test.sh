@@ -137,9 +137,7 @@ function DoTests
 if [ "$dir" ]; then
 	DoTests "$dir"
 else
-	DoTests C:/Projects/Epic/UnrealEngine4-latest/Engine/Source --exclude=ThirdParty
-	DoTests C:/3-UnrealEngine/UE_4.18/Engine/Binaries/Win64
-	DoTests C:/1
-#	DoTests C:/Data/Images
-#	DoTests C:/Downloads/torrent/Trollhunters
+	DoTests D:/EpicGames/UE_5.0/Engine/Source --exclude=ThirdParty
+	DoTests D:/EpicGames/UE_5.0/Engine/Binaries/Win64
+	DoTests D:/!unsorted/silesia
 fi
